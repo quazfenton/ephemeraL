@@ -9,6 +9,16 @@ set -e
 USER_ID="$1"
 SNAPSHOT_ID="$2"
 
+# Validate input format (alphanumeric, underscores, hyphens only)
+if [[ ! "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: Invalid USER_ID format. Only alphanumeric, underscore, and hyphen allowed."
+    exit 1
+fi
+if [[ ! "$SNAPSHOT_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: Invalid SNAPSHOT_ID format. Only alphanumeric, underscore, and hyphen allowed."
+    exit 1
+fi
+
 if [ -z "$USER_ID" ] || [ -z "$SNAPSHOT_ID" ]; then
     echo "Usage: $0 <user_id> <snapshot_id>"
     echo "Example: $0 u_123 snap_001"

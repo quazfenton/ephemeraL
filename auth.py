@@ -32,6 +32,8 @@ def map_user_to_workspace(token: str) -> tuple[str, str]:
     """
     user_id = get_user_id(token)
     
+    if not user_id or not all(c.isalnum() or c in '-_' for c in user_id):
+        raise ValueError("Invalid user_id format")
     workspace = f"/srv/workspaces/{user_id}"
     container = f"shell-{user_id}"
     

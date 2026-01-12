@@ -9,6 +9,12 @@ set -e
 ACTION="$1"
 USER_ID="$2"
 
+# Validate USER_ID format (alphanumeric, underscore, hyphen only)
+if ! [[ "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed."
+    exit 1
+fi
+
 if [ -z "$ACTION" ] || [ -z "$USER_ID" ]; then
     echo "Usage: $0 <action> <user_id>"
     echo ""

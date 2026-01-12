@@ -309,7 +309,7 @@ Consider adding:
 cat > /home/ubuntu/backup_snapshots.sh << 'EOF'
 #!/bin/bash
 # Backup all snapshots to S3 or remote storage
-aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ --delete
+aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/
 EOF
 
 chmod +x /home/ubuntu/backup_snapshots.sh

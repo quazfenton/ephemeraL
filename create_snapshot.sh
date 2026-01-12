@@ -9,6 +9,12 @@ set -e
 USER_ID="$1"
 SNAPSHOT_ID="$2"
 
+# Validate inputs to prevent path traversal
+if [[ ! "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ ! "$SNAPSHOT_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: user_id and snapshot_id must contain only alphanumeric characters, underscores, and hyphens"
+    exit 1
+fi
+
 if [ -z "$USER_ID" ] || [ -z "$SNAPSHOT_ID" ]; then
     echo "Usage: $0 <user_id> <snapshot_id>"
     echo "Example: $0 u_123 snap_001"
@@ -25,7 +31,7 @@ echo "Snapshot ID: ${SNAPSHOT_ID}"
 
 # Step 1 — Stop container (clean state)
 echo "Stopping container..."
-docker stop "${CONTAINER_NAME}"
+docker stop "${CONTAINER_NAME}" || true
 
 # Step 2 — Create snapshot directory if it doesn't exist
 mkdir -p "${SNAPSHOT_DIR}"
