@@ -327,14 +327,14 @@ cat > /home/ubuntu/backup_snapshots.sh << 'EOF'
 #!/bin/bash
 # Backup all snapshots to S3 or remote storage
 # Log output and errors for monitoring
-aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ >> /var/log/snapshot-backup.log 2>&1
+aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ >> /home/ubuntu/snapshot-backup.log 2>&1
 EOF
 
 chmod +x /home/ubuntu/backup_snapshots.sh
 
 # Add to crontab for daily backups with logging
 crontab -e
-# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /var/log/cron-snapshot-backup.log 2>&1
+# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /home/ubuntu/cron-snapshot-backup.log 2>&1
 ```
 
 ## Troubleshooting

@@ -1,5 +1,6 @@
 import { ECSClient, ExecuteCommandCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
 import { DynamoDBClient, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { verify } from 'jsonwebtoken';
 
 const ecs = new ECSClient({});
 const ddb = new DynamoDBClient({});
@@ -35,6 +36,7 @@ const validateAndSanitizeCommand = (command: string): string => {
     /chown\s+/i,                     // chown commands
     /\$\(.*\)/,                      // Command substitution with $()
     /`.*`/,                          // Command substitution with backticks
+    /\$\{.*\}/,                      // Parameter expansion with ${...}
     /;\s*rm/i,                       // Semicolon followed by rm
     /&&\s*rm/i,                      // && followed by rm
     /\|\|\s*rm/i,                    // || followed by rm
@@ -64,9 +66,26 @@ const validateAndSanitizeCommand = (command: string): string => {
  * Validates the session belongs to the requesting user
  */
 const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolean => {
-  // In a real implementation, you would validate that the session belongs to the user
-  // For now, we'll just return true
-  return true;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    // In a real implementation, you would verify the JWT against your identity provider's public key
+    // For now, we'll decode it and extract the user ID
+    const decoded: any = verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    const userId = decoded.sub || decoded.userId;
+
+    // Compare the authenticated user ID with the session owner
+    const sessionUserId = sessionItem.user.S;
+
+    return userId === sessionUserId;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return false;
+  }
 };
 
 export const handler = async (event: APIGatewayEvent): Promise<ExecuteResponse> => {

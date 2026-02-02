@@ -1,6 +1,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import { DynamoDBClient, PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { v4 as uuidv4 } from 'uuid';
+import { verify } from 'jsonwebtoken';
 
 const ecs = new ECSClient({});
 const ddb = new DynamoDBClient({});
@@ -32,13 +33,21 @@ const validateAuth = (authHeader?: string): string => {
   // Basic validation for Bearer token format
   if (authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
-    // In a real implementation, you would verify the JWT here
-    // For now, we'll just return a user ID derived from the token
-    return `user_${token.substring(0, 8)}`;
+
+    try {
+      // Verify the JWT against the identity provider's public key
+      const decoded: any = verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      // Return the user ID from the token's subject claim
+      return decoded.sub || decoded.userId || DEFAULT_USER;
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      // Return default user if token is invalid
+      return DEFAULT_USER;
+    }
   }
 
-  // For basic auth or other schemes
-  return `user_${authHeader.substring(0, 8)}`;
+  // Return default user for non-bearer schemes
+  return DEFAULT_USER;
 };
 
 /**
@@ -71,7 +80,17 @@ const checkUserQuota = async (userId: string): Promise<boolean> => {
 };
 
 export const handler = async (event: APIGatewayEvent): Promise<StartResponse> => {
-  console.log('Start shell session request received:', JSON.stringify(event.headers, null, 2));
+  // Sanitize headers to avoid logging sensitive information
+  const sanitizedHeaders = Object.keys(event.headers).reduce((acc, key) => {
+    if (key.toLowerCase() === 'authorization') {
+      acc[key] = '[REDACTED]';
+    } else {
+      acc[key] = event.headers[key];
+    }
+    return acc;
+  }, {} as Record<string, string | undefined>);
+
+  console.log('Start shell session request received:', JSON.stringify(sanitizedHeaders, null, 2));
 
   try {
     // Validate environment variables

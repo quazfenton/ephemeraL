@@ -82,8 +82,10 @@ def generate_snapshot_id() -> str:
     return f"snap_{datetime.now().strftime('%Y_%m_%d_%H%M%S')}"
 
 
+from fastapi import Body
+
 @app.post("/snapshot/create", response_model=SnapshotResponse)
-async def create_snapshot(request: SnapshotCreateRequest, current_user: str = Depends(get_current_user)):
+async def create_snapshot(current_user: str = Depends(get_current_user), request: dict = Body(None)):
     """
     Create a snapshot of user workspace
 

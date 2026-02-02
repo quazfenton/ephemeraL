@@ -19,18 +19,47 @@ interface StopResponse {
   body: string;
 }
 
+import { verify } from 'jsonwebtoken';
+
 /**
  * Validates the session belongs to the requesting user
  */
 const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolean => {
-  // In a real implementation, you would validate that the session belongs to the user
-  // For now, we'll just return true
-  return true;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    // In a real implementation, you would verify the JWT against your identity provider's public key
+    // For now, we'll decode it and extract the user ID
+    const decoded: any = verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    const userId = decoded.sub || decoded.userId;
+
+    // Compare the authenticated user ID with the session owner
+    const sessionUserId = sessionItem.user.S;
+
+    return userId === sessionUserId;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return false;
+  }
 };
 
 export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => {
+  // Sanitize headers to avoid logging sensitive information
+  const sanitizedHeaders = Object.keys(event.headers).reduce((acc, key) => {
+    if (key.toLowerCase() === 'authorization') {
+      acc[key] = '[REDACTED]';
+    } else {
+      acc[key] = event.headers[key];
+    }
+    return acc;
+  }, {} as Record<string, string | undefined>);
+
   console.log('Stop shell session request received:', JSON.stringify({
-    headers: event.headers,
+    headers: sanitizedHeaders,
     body: event.body ? 'present' : 'missing'
   }, null, 2));
 
