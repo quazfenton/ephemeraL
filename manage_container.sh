@@ -9,12 +9,6 @@ set -e
 ACTION="$1"
 USER_ID="$2"
 
-# Validate USER_ID format (alphanumeric, underscore, hyphen only)
-if ! [[ "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed."
-    exit 1
-fi
-
 if [ -z "$ACTION" ] || [ -z "$USER_ID" ]; then
     echo "Usage: $0 <action> <user_id>"
     echo ""
@@ -27,6 +21,12 @@ if [ -z "$ACTION" ] || [ -z "$USER_ID" ]; then
     echo "  status   - Check container status"
     echo ""
     echo "Example: $0 create u_123"
+    exit 1
+fi
+
+# Validate USER_ID format (alphanumeric, underscore, hyphen only)
+if ! [[ "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed."
     exit 1
 fi
 
@@ -82,7 +82,7 @@ case "$ACTION" in
         
     status)
         echo "Container status for: ${CONTAINER_NAME}"
-        docker ps -a --filter "name=${CONTAINER_NAME}" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
+        docker ps -a --filter "name=^${CONTAINER_NAME}$" --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"
         ;;
         
     *)

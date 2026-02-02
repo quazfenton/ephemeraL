@@ -44,7 +44,7 @@ snapshot_id
 ### Example Snapshot Filename
 
 ```
-snap_2026_01_01_1200.tar.zst
+snap_2026_01_01_120000.tar.zst
 ```
 
 ## Directory Structure
@@ -57,6 +57,8 @@ snap_2026_01_01_1200.tar.zst
 ```
 
 Identity namespaces everything. No cross-user leakage possible.
+
+**Security Note**: Isolation depends on filesystem permissions. Ensure strict permissions on user directories (e.g., chmod 700 or equivalent), ensure snapshots inherit restrictive ownership, and verify that umask and backup/restore flows preserve those permissions.
 
 ## Platform Architecture
 

@@ -182,13 +182,15 @@ The API will be available at `http://localhost:8000`
 ```bash
 curl -X POST http://localhost:8000/snapshot/create \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "u_test_123"}'
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{}'
 ```
 
 #### List Snapshots
 
 ```bash
-curl http://localhost:8000/snapshot/list/u_test_123
+curl http://localhost:8000/snapshot/list \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
 #### Restore Snapshot
@@ -196,8 +198,8 @@ curl http://localhost:8000/snapshot/list/u_test_123
 ```bash
 curl -X POST http://localhost:8000/snapshot/restore \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
   -d '{
-    "user_id": "u_test_123",
     "snapshot_id": "snap_test_001"
   }'
 ```
@@ -305,18 +307,34 @@ Consider adding:
 ### 6. Backup Strategy
 
 ```bash
+# Install AWS CLI
+sudo apt update
+sudo apt install -y awscli
+
+# Configure AWS credentials (choose one of the following methods):
+# Method 1: Interactive configuration
+aws configure
+
+# Method 2: Environment variables
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+export AWS_DEFAULT_REGION=your_region
+
+# Method 3: IAM Role (recommended for EC2 instances)
+
 # Create backup script
 cat > /home/ubuntu/backup_snapshots.sh << 'EOF'
 #!/bin/bash
 # Backup all snapshots to S3 or remote storage
-aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/
+# Log output and errors for monitoring
+aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ >> /var/log/snapshot-backup.log 2>&1
 EOF
 
 chmod +x /home/ubuntu/backup_snapshots.sh
 
-# Add to crontab for daily backups
+# Add to crontab for daily backups with logging
 crontab -e
-# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh
+# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /var/log/cron-snapshot-backup.log 2>&1
 ```
 
 ## Troubleshooting
@@ -380,6 +398,6 @@ sudo netstat -tlnp | grep 8000
 ## Support
 
 For issues and questions, refer to:
-- Original conversation: https://chatgpt.com/share/695a0e7f-dd14-8004-a308-d54851120225
+- [Original conversation](https://chatgpt.com/share/695a0e7f-dd14-8004-a308-d54851120225)
 - Platform documentation in `data_models.md`
 - Identity setup in `identity_config.md`

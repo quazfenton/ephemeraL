@@ -117,6 +117,99 @@ python snapshot_api.py
 - zstd
 - Python 3.11+
 
+## New Serverless Shell Implementation
+
+### Serverless Shell Files
+
+| File | Description | Key Components |
+|------|-------------|----------------|
+| `CIDD.md` | Context, Intent, Decision, Done plan | Requirements and implementation plan |
+| `serverless-shell/README.md` | Serverless shell overview | Architecture, setup, endpoints |
+| `serverless-shell/package.json` | Node.js project dependencies | CDK, SDKs, TypeScript |
+| `serverless-shell/tsconfig.json` | TypeScript compiler config | ES2020, strict mode |
+| `serverless-shell/lib/shell-backend-stack.ts` | AWS CDK infrastructure | VPC, ECS, DynamoDB, API Gateway |
+| `serverless-shell/src/docker/Dockerfile` | Container image definition | Ubuntu base, CLI tools, security |
+| `serverless-shell/src/lambdas/start/index.ts` | Start shell session | ECS task creation, session storage |
+| `serverless-shell/src/lambdas/execute/index.ts` | Execute commands | ECS Exec, input sanitization |
+| `serverless-shell/src/lambdas/stop/index.ts` | Stop shell session | Task termination, cleanup |
+| `serverless-shell/security-best-practices.md` | Security guidelines | Authentication, validation, monitoring |
+
+## File Structure Overview (Updated)
+
+```
+cloud-terminal-platform/
+├── Core Python Modules
+│   ├── auth.py                 # JWT authentication
+│   └── snapshot_api.py         # REST API endpoints
+│
+├── Shell Scripts
+│   ├── create_snapshot.sh      # Snapshot creation
+│   ├── restore_snapshot.sh     # Snapshot restoration
+│   └── manage_container.sh     # Container management
+│
+├── Serverless Shell Implementation
+│   ├── README.md               # Overview and setup
+│   ├── package.json            # Dependencies
+│   ├── tsconfig.json           # TypeScript config
+│   ├── lib/
+│   │   └── shell-backend-stack.ts # CDK infrastructure
+│   ├── src/
+│   │   ├── docker/
+│   │   │   └── Dockerfile     # Container definition
+│   │   └── lambdas/
+│   │       ├── start/          # Start session
+│   │       ├── execute/        # Execute commands
+│   │       └── stop/           # Stop session
+│   └── security-best-practices.md # Security guidelines
+│
+├── Documentation
+│   ├── README.md               # Project overview
+│   ├── SETUP_GUIDE.md          # Setup instructions
+│   ├── data_models.md          # Data architecture
+│   ├── identity_config.md      # Identity setup
+│   ├── scouts.md               # Serverless shell design
+│   └── FILE_INDEX.md           # This file
+│
+└── Configuration
+    ├── requirements.txt        # Python dependencies
+    └── .env.example            # Environment template
+```
+
+## Code Statistics (Updated)
+
+- **Python files**: 2
+- **Shell scripts**: 3
+- **TypeScript files**: 4
+- **Docker files**: 1
+- **Documentation files**: 6
+- **Configuration files**: 3
+- **Total files**: 19
+
+## Dependencies (Updated)
+
+### Python Packages (from requirements.txt)
+- fastapi
+- uvicorn
+- python-jose
+- pydantic
+- httpx
+- python-dotenv
+
+### Node.js Packages (from package.json)
+- aws-cdk-lib
+- constructs
+- @aws-sdk/client-ecs
+- @aws-sdk/client-dynamodb
+- uuid
+
+### System Requirements
+- Docker
+- bash
+- zstd
+- Python 3.11+
+- Node.js 18+
+- AWS CLI
+
 ## Source
 
 All code extracted from ChatGPT conversation:
@@ -128,3 +221,10 @@ The conversation covered designing a Zo-like personal cloud terminal with:
 - Workspace isolation
 - Container/microVM hosting
 - Snapshot/restore functionality
+
+Additional serverless shell implementation based on scouts.md requirements:
+- AWS CDK infrastructure as code
+- ECS Fargate containerized shells
+- Lambda functions for orchestration
+- DynamoDB session management
+- Security-focused design

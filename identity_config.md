@@ -55,11 +55,25 @@ You only handle:
 ## Integration Example
 
 ```python
+import re
 from jose import jwt
+
+def validate_user_id(user_id: str) -> bool:
+    """
+    Validate user ID to prevent path traversal and command injection
+    """
+    # Allow only alphanumeric characters, hyphens, and underscores
+    return bool(re.match(r'^[a-zA-Z0-9_-]+$', user_id))
 
 def get_user_id(token: str):
     payload = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"])
-    return payload["sub"]   # stable user id
+    user_id = payload["sub"]   # stable user id
+
+    # Validate user_id to prevent path traversal
+    if not validate_user_id(user_id):
+        raise ValueError("Invalid user ID format")
+
+    return user_id
 ```
 
 The `sub` claim becomes your stable user identifier (e.g., `u_auth0_abc123`).
