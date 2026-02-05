@@ -75,7 +75,12 @@ const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolea
   try {
     // In a real implementation, you would verify the JWT against your identity provider's public key
     // For now, we'll decode it and extract the user ID
-    const decoded: any = verify(token, process.env.JWT_SECRET || 'fallback-secret');
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable is not configured');
+      return false;
+    }
+    const decoded: any = verify(token, jwtSecret);
     const userId = decoded.sub || decoded.userId;
 
     // Compare the authenticated user ID with the session owner
