@@ -15,9 +15,24 @@ _RECORD_LOCK = threading.Lock()
 
 class EventRecorder:
     def __init__(self) -> None:
+        """
+        Ensure the recorder's log directory exists.
+        
+        Creates the parent directory for RECORD_FILE if it does not already exist, including any intermediate directories.
+        """
         RECORD_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     async def record(self, event: str, sandbox_id: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Append a JSON-formatted audit event line to the recorder file.
+        
+        Constructs a payload containing a timestamp, the provided event name, sandbox identifier, and metadata (uses an empty dict when None), then appends the payload as a newline-delimited JSON line to the module-level RECORD_FILE under a module-level lock to ensure thread-safe writes.
+        
+        Parameters:
+            event (str): Event name or type to record.
+            sandbox_id (str): Identifier of the sandbox associated with the event.
+            metadata (Optional[Dict[str, Any]]): Additional event data; stored as an object in the payload (defaults to an empty dict).
+        """
         payload = {
             "timestamp": time.time(),
             "event": event,
