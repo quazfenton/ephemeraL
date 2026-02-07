@@ -7,7 +7,6 @@ from typing import Any, Dict, Optional, Tuple
 
 import httpx
 
-
 @dataclass
 class PreviewTarget:
     sandbox_id: str
@@ -18,11 +17,11 @@ class PreviewTarget:
     use_fallback: bool = False
     last_health_check: float = field(default_factory=time.time)
 
-    `@property`
+    @property
     def effective_url(self) -> str:
         """
         Selects the active URL for this preview target.
-        
+
         Returns:
             The fallback URL when fallback is active (`use_fallback` is True), otherwise the primary backend URL.
         """
