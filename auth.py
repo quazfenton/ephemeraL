@@ -44,6 +44,9 @@ def get_user_id(token: str) -> str:
         issuer = os.getenv("JWT_ISSUER")
         if audience:
             decode_kwargs["audience"] = audience
+        else:
+            import warnings
+            warnings.warn("JWT_AUDIENCE not set — audience validation disabled", RuntimeWarning, stacklevel=2)
         if issuer:
             decode_kwargs["issuer"] = issuer
         payload = jwt.decode(token, PUBLIC_KEY, **decode_kwargs)
