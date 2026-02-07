@@ -185,7 +185,7 @@ async def register_preview(sandbox_id: str, payload: PreviewRequest):
         HTTPException: Raises a 404 error if the sandbox is not found.
     """
     try:
-        sandbox = await manager.get_sandbox(sandbox_id)
+        await manager.get_sandbox(sandbox_id)  # verify sandbox exists
         backend = f"http://127.0.0.1:{payload.port}"
         url = await preview.register(sandbox_id, payload.port, backend)
         await manager.register_preview(sandbox_id, payload.port, url)
