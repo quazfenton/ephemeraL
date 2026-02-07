@@ -78,7 +78,14 @@ class SnapshotResponse(BaseModel):
 
 
 def generate_snapshot_id() -> str:
-    """Generate a unique snapshot ID based on timestamp"""
+    """
+    Create a timestamp-based snapshot identifier.
+    
+    The identifier uses the current local time and follows the format `snap_YYYY_MM_DD_HHMMSS`.
+    
+    Returns:
+        snapshot_id (str): Snapshot identifier in the format `snap_YYYY_MM_DD_HHMMSS`.
+    """
     return f"snap_{datetime.now().strftime('%Y_%m_%d_%H%M%S')}"
 
 
@@ -87,10 +94,17 @@ from fastapi import Body
 @app.post("/snapshot/create", response_model=SnapshotResponse)
 async def create_snapshot(current_user: str = Depends(get_current_user), request: dict = Body(None)):
     """
-    Create a snapshot of user workspace
-
-    POST /snapshot/create
-    Headers: Authorization: Bearer <jwt_token>
+    Create a snapshot of the requesting user's workspace.
+    
+    Parameters:
+        request (dict, optional): Optional request body provided to the endpoint (not required for snapshot creation).
+    
+    Returns:
+        SnapshotResponse: Operation result containing:
+            - `success` (bool): `true` if snapshot creation succeeded, `false` otherwise.
+            - `message` (str): Human-readable status message.
+            - `snapshot_id` (str | None): Identifier of the created snapshot when successful.
+            - `size` (str | None): Human-readable size of the created snapshot (e.g., "10M").
     """
     try:
         snapshot_id = generate_snapshot_id()

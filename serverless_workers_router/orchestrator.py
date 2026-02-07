@@ -25,12 +25,25 @@ class FallbackProcess:
 
 class PortAllocator:
     def __init__(self, start: int = 33000, end: int = 33999) -> None:
+        """
+        Initialize the port allocator with a configurable inclusive port range and prepare it for concurrent async allocation.
+        
+        Parameters:
+            start (int): First port in the inclusive allocation range (default 33000).
+            end (int): Last port in the inclusive allocation range (default 33999). Must be greater than or equal to `start`.
+        """
         self._start = start
         self._end = end
         self._current = start
         self._lock = asyncio.Lock()
 
     async def allocate(self) -> int:
+        """
+        Allocate the next available port from the configured range, advancing the allocator and wrapping to the start when the end is exceeded.
+        
+        Returns:
+            port (int): Allocated port number.
+        """
         async with self._lock:
             if self._current > self._end:
                 self._current = self._start
@@ -46,6 +59,14 @@ class FallbackOrchestrator:
         snapshot_dir: str = "/tmp/snapshots",
         port_allocator: Optional[PortAllocator] = None,
     ) -> None:
+        """
+        Initialize a FallbackOrchestrator with workspace/snapshot directories and a port allocator.
+        
+        Parameters:
+            workspace_dir (str): Base directory where per-sandbox workspaces will be created.
+            snapshot_dir (str): Base directory where sandbox snapshots are stored.
+            port_allocator (Optional[PortAllocator]): Optional custom PortAllocator to use for serving ports; a default allocator is created if omitted.
+        """
         self.container = ContainerFallback(
             base_workspace_dir=workspace_dir,
             base_snapshot_dir=snapshot_dir,
@@ -55,6 +76,17 @@ class FallbackOrchestrator:
         self._lock = asyncio.Lock()
 
     async def promote_to_container(self, sandbox_id: str) -> str:
+        """
+        Ensure a container-backed HTTP server is running for the given sandbox and return its public URL.
+        
+        If an active fallback process already exists for the sandbox, its URL is returned. Otherwise this method creates and starts the container workspace (if needed), allocates a port, launches a local Python HTTP server subprocess bound to 127.0.0.1, and records stdout/stderr logs for the fallback process.
+        
+        Parameters:
+            sandbox_id (str): Identifier of the sandbox to promote.
+        
+        Returns:
+            url (str): HTTP URL (e.g., "http://127.0.0.1:<port>") where the promoted sandbox is served.
+        """
         async with self._lock:
             existing = self._processes.get(sandbox_id)
             if existing and existing.process.poll() is None:
@@ -105,6 +137,14 @@ class FallbackOrchestrator:
             return f"http://127.0.0.1:{serve_port}"
 
     async def stop_container(self, sandbox_id: str) -> None:
+        """
+        Stop and clean up the container-backed HTTP server for a sandbox.
+        
+        If a tracked fallback process for the given sandbox exists and is running, terminate it (wait up to 5 seconds, then kill if it doesn't exit), close its stdout/stderr handles to flush logs, and instruct the container manager to stop the container. If no process is tracked for the sandbox, the call is a no-op.
+        
+        Parameters:
+            sandbox_id (str): Identifier of the sandbox whose container and associated process should be stopped.
+        """
         async with self._lock:
             info = self._processes.pop(sandbox_id, None)
             if not info:
@@ -122,6 +162,11 @@ class FallbackOrchestrator:
             self.container.stop_container(sandbox_id)
 
     async def cleanup_stale(self) -> None:
+        """
+        Remove tracked fallback processes that have exited and stop their containers.
+        
+        Acquires the orchestrator's internal lock, scans the current process map, removes entries whose subprocess has finished, and invokes the container manager to stop the corresponding sandbox containers.
+        """
         async with self._lock:
             for sandbox_id, info in list(self._processes.items()):
                 if info.process.poll() is not None:

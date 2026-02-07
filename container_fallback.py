@@ -27,7 +27,14 @@ class ContainerFallback:
     
     def __init__(self, base_workspace_dir: str = "/tmp/workspaces", 
                  base_snapshot_dir: str = "/tmp/snapshots"):
-        self.base_workspace_dir = Path(base_workspace_dir)
+        """
+                 Initialize a ContainerFallback instance and ensure base workspace and snapshot directories exist.
+                 
+                 Parameters:
+                     base_workspace_dir (str): Filesystem path used as the parent directory for per-user workspaces (default "/tmp/workspaces").
+                     base_snapshot_dir (str): Filesystem path used to store per-user snapshot archives (default "/tmp/snapshots").
+                 """
+                 self.base_workspace_dir = Path(base_workspace_dir)
         self.base_snapshot_dir = Path(base_snapshot_dir)
         
         # Ensure base directories exist
@@ -38,24 +45,68 @@ class ContainerFallback:
         self.running_containers = {}
         
     def _validate_user_id(self, user_id: str) -> bool:
-        """Validate user ID format to prevent path traversal"""
+        """
+        Validate that `user_id` contains only ASCII letters, digits, underscores, or hyphens.
+        
+        Parameters:
+            user_id (str): Candidate user identifier.
+        
+        Returns:
+            bool: `True` if `user_id` consists only of letters (A–Z, a–z), digits (0–9), underscore (`_`) or hyphen (`-`); `False` otherwise.
+        """
         import re
         return bool(re.match(r'^[a-zA-Z0-9_-]+$', user_id))
     
     def _get_workspace_path(self, user_id: str) -> Path:
-        """Get workspace path for user"""
+        """
+        Return the workspace directory Path for the given user.
+        
+        Validates the user_id and constructs the path under the container's base workspace directory.
+        
+        Parameters:
+            user_id (str): Identifier for the user; must match the allowed pattern (letters, digits, underscore, hyphen).
+        
+        Returns:
+            Path: Path to the user's workspace directory (base_workspace_dir / user_id).
+        
+        Raises:
+            ValueError: If user_id does not match the required format.
+        """
         if not self._validate_user_id(user_id):
             raise ValueError(f"Invalid user_id format: {user_id}")
         return self.base_workspace_dir / user_id
     
     def _get_snapshot_path(self, user_id: str, snapshot_id: str) -> Path:
-        """Get snapshot path for user and snapshot ID"""
+        """
+        Construct the filesystem path to a user's snapshot archive.
+        
+        Parameters:
+            user_id (str): User identifier (letters, digits, underscore, hyphen).
+            snapshot_id (str): Snapshot identifier (letters, digits, underscore, hyphen).
+        
+        Returns:
+            Path: Path to the snapshot file named "<snapshot_id>.tar.zst" under the user's snapshot directory.
+        
+        Raises:
+            ValueError: If `user_id` or `snapshot_id` does not match the allowed format.
+        """
         if not self._validate_user_id(user_id) or not self._validate_user_id(snapshot_id):
             raise ValueError(f"Invalid user_id or snapshot_id format")
         return self.base_snapshot_dir / user_id / f"{snapshot_id}.tar.zst"
     
     def create_container(self, user_id: str, image: str = "ubuntu:22.04") -> bool:
-        """Create a workspace directory for the user (fallback equivalent of container)"""
+        """
+        Create a per-user workspace directory with a minimal container-like filesystem and mark it as running.
+        
+        Creates the workspace directory and the subdirectories "code", ".config", and ".cache", and writes a ".container_running" marker file to indicate the fallback container state. The function validates the provided user_id before performing filesystem operations.
+        
+        Parameters:
+        	user_id (str): Identifier for the user; must match the module's user-id validation rules.
+        	image (str): Optional image identifier (e.g., "ubuntu:22.04"); accepted for API compatibility but not used by the filesystem-based fallback.
+        
+        Returns:
+        	True if the workspace and running marker were created (or already existed) and no error occurred, False otherwise.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             workspace_path.mkdir(parents=True, exist_ok=True)
@@ -77,7 +128,17 @@ class ContainerFallback:
             return False
     
     def start_container(self, user_id: str) -> bool:
-        """Start a "container" by ensuring workspace exists and is accessible"""
+        """
+        Start the user's fallback container and mark the workspace as running.
+        
+        Ensures the user's workspace exists and creates a ".container_running" marker file to indicate the workspace is running.
+        
+        Parameters:
+            user_id (str): User identifier (alphanumeric, underscore, hyphen).
+        
+        Returns:
+            True if the workspace was found and marked as running, False otherwise.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             if not workspace_path.exists():
@@ -94,7 +155,17 @@ class ContainerFallback:
             return False
     
     def stop_container(self, user_id: str) -> bool:
-        """Stop a "container" by removing the running marker"""
+        """
+        Stop a user's fallback container by clearing its running marker.
+        
+        Removes the workspace's ".container_running" marker file for the given user if it exists, indicating the container is stopped. The function validates the user_id format before resolving the workspace path.
+        
+        Parameters:
+            user_id (str): Identifier for the user; must match the module's allowed user ID pattern (alphanumeric, underscore, hyphen).
+        
+        Returns:
+            bool: `True` if the workspace existed and the container was stopped (marker removed or already absent), `False` if the workspace does not exist or an error occurred.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             if not workspace_path.exists():
@@ -113,11 +184,24 @@ class ContainerFallback:
             return False
     
     def restart_container(self, user_id: str) -> bool:
-        """Restart a "container" by stopping and starting"""
+        """
+        Restart a user's fallback container workspace.
+        
+        Returns:
+            True if the container was stopped and started successfully, False otherwise.
+        """
         return self.stop_container(user_id) and self.start_container(user_id)
     
     def remove_container(self, user_id: str) -> bool:
-        """Remove a "container" (workspace directory)"""
+        """
+        Remove the workspace directory for the given user, effectively deleting the fallback "container".
+        
+        Parameters:
+            user_id (str): Identifier of the workspace to remove.
+        
+        Returns:
+            bool: True if the workspace was removed or did not exist, False if an error occurred.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             if workspace_path.exists():
@@ -133,7 +217,16 @@ class ContainerFallback:
             return False
     
     def container_status(self, user_id: str) -> str:
-        """Check status of a "container" (workspace)"""
+        """
+        Determine the state of a user's workspace-backed container.
+        
+        Returns:
+            status (str): One of:
+                - 'running' if the workspace exists and the .container_running marker is present.
+                - 'stopped' if the workspace exists but the marker is absent.
+                - 'not_found' if the workspace directory does not exist.
+                - 'error' if an unexpected error occurred while checking status.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             if not workspace_path.exists():
@@ -149,7 +242,17 @@ class ContainerFallback:
             return "error"
     
     def create_snapshot(self, user_id: str, snapshot_id: str) -> bool:
-        """Create a snapshot of the user's workspace"""
+        """
+        Create a zstd-compressed tar snapshot of a user's workspace.
+        
+        Stops the workspace if it is running to produce a consistent snapshot, writes the archive to
+        base_snapshot_dir/<user_id>/<snapshot_id>.tar.zst, and restarts the workspace if it was running.
+        Parameters:
+            user_id (str): Identifier for the user; must match the validator's allowed pattern.
+            snapshot_id (str): Identifier for the snapshot; used as the filename (without extension).
+        Returns:
+            bool: `True` if the snapshot was created successfully, `False` otherwise.
+        """
         try:
             workspace_path = self._get_workspace_path(user_id)
             if not workspace_path.exists():
@@ -194,7 +297,14 @@ class ContainerFallback:
             return False
     
     def restore_snapshot(self, user_id: str, snapshot_id: str) -> bool:
-        """Restore a workspace from a snapshot"""
+        """
+        Restore a user's workspace by replacing it with the specified snapshot.
+        
+        This operation removes any existing workspace for the given user, extracts the snapshot archive into the workspace parent directory, and will stop the running container temporarily and restart it afterward if it was running before the restore.
+        
+        Returns:
+            True if the snapshot was restored successfully, False otherwise.
+        """
         try:
             # Get snapshot path
             snapshot_path = self._get_snapshot_path(user_id, snapshot_id)
@@ -243,7 +353,19 @@ class ContainerFallback:
             return False
     
     def list_snapshots(self, user_id: str) -> list:
-        """List all snapshots for a user"""
+        """
+        Return metadata for all snapshot archives belonging to a user, sorted by modification time (newest first).
+        
+        Parameters:
+            user_id (str): Identifier of the user whose snapshots are listed.
+        
+        Returns:
+            list: A list of dictionaries, each containing:
+                - snapshot_id (str): Snapshot identifier (filename without the `.tar.zst` extension).
+                - size (int): File size in bytes.
+                - path (str): Filesystem path to the snapshot file.
+            Returns an empty list if the user has no snapshots or an error occurs.
+        """
         try:
             snapshot_dir = self.base_snapshot_dir / user_id
             if not snapshot_dir.exists():
@@ -268,7 +390,12 @@ class ContainerFallback:
 
 
 def detect_docker_availability():
-    """Check if Docker is available"""
+    """
+    Determine whether the Docker CLI is available and responsive on the current system.
+    
+    Returns:
+        bool: `True` if running `docker version` succeeds, `False` if the command fails or the docker executable is not found.
+    """
     try:
         result = subprocess.run(["docker", "version"], 
                               stdout=subprocess.PIPE, 
@@ -280,7 +407,11 @@ def detect_docker_availability():
 
 
 def main():
-    """Main entry point for the fallback container manager"""
+    """
+    CLI entry point for the fallback container manager that parses command-line arguments and performs container-like actions for a given user.
+    
+    Parses sys.argv to perform one of the supported actions: create, start, stop, restart, remove, status, snapshot, or restore for the specified user_id. The snapshot and restore actions require an additional snapshot_id argument. The function validates the user_id format, invokes the corresponding ContainerFallback method, prints usage or status messages as needed, and terminates the process with exit code 0 on success or 1 on failure.
+    """
     if len(sys.argv) < 3:
         print("Usage: container_fallback.py <action> <user_id> [additional_args]")
         print("")

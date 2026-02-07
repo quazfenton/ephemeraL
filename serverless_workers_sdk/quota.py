@@ -8,10 +8,25 @@ from typing import Dict
 
 class QuotaManager:
     def __init__(self, limit_per_hour: int = 120) -> None:
+        """
+        Initialize the quota manager with a per-sandbox hourly execution limit and an empty timestamp store.
+        
+        Parameters:
+            limit_per_hour (int): Maximum allowed executions per sandbox within any rolling one-hour window (default 120).
+        """
         self.limit_per_hour = limit_per_hour
         self._counters: Dict[str, list[float]] = {}
 
     def allow_execution(self, sandbox_id: str) -> bool:
+        """
+        Check whether the specified sandbox has remaining executions available within the current one-hour window.
+        
+        Parameters:
+            sandbox_id (str): Identifier of the sandbox to check.
+        
+        Returns:
+            `true` if the sandbox has recorded fewer than `limit_per_hour` executions in the past hour, `false` otherwise.
+        """
         now = time.time()
         window = now - 3600
         timestamps = self._counters.setdefault(sandbox_id, [])
@@ -21,6 +36,14 @@ class QuotaManager:
         return len(timestamps) < self.limit_per_hour
 
     def record_execution(self, sandbox_id: str) -> None:
+        """
+        Record an execution timestamp for a sandbox.
+        
+        Appends the current time to the internal per-sandbox list of execution timestamps used for hourly quota tracking.
+        
+        Parameters:
+            sandbox_id (str): Identifier of the sandbox whose execution should be recorded.
+        """
         now = time.time()
         timestamps = self._counters.setdefault(sandbox_id, [])
         timestamps.append(now)
