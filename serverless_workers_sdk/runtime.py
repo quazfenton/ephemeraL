@@ -176,7 +176,9 @@ class SandboxManager:
             script_path.write_text(code)
             cmd = [command, str(script_path)]
 
-        env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        _SAFE_ENV_KEYS = {"PATH", "HOME", "LANG", "LC_ALL"}
+        env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
+        env["PYTHONUNBUFFERED"] = "1"
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(sandbox.workspace),
