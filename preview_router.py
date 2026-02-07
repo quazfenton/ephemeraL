@@ -163,7 +163,7 @@ async def register_preview(payload: PreviewRegistration) -> PreviewStatus:
     return PreviewStatus(
         sandbox_id=target.sandbox_id,
         port=target.port,
-        url=target.backend_url,
+        url=target.effective_url,
         use_fallback=target.use_fallback,
         metadata=target.metadata,
     )
