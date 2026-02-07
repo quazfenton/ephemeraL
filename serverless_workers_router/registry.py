@@ -185,6 +185,8 @@ class PreviewRegistry:
         if await self.health_check_needed(target):
             healthy = await self._health_checker.is_healthy(target.effective_url)
             async with self._lock:
+                if target.use_fallback:
+                    return False
                 target.last_health_check = time.time()
             return healthy
         return True
