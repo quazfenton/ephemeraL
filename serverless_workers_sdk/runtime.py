@@ -16,7 +16,7 @@ from serverless_workers_sdk.quota import QuotaManager
 from serverless_workers_sdk.recorder import EventRecorder
 from serverless_workers_sdk.virtual_fs import VirtualFS
 
-SANDBOX_ROOT = Path(os.getenv("SANDBOX_ROOT", "/tmp/serverless_sandboxes"))
+SANDBOX_ROOT = Path(os.getenv("SANDBOX_ROOT") or tempfile.mkdtemp(prefix="serverless_sandboxes_", mode=0o700))
 ALLOWED_COMMANDS = {"python", "node"}
 DEFAULT_TIMEOUT = 15
 
