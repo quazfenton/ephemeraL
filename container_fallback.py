@@ -373,16 +373,21 @@ class ContainerFallback:
             
             snapshots = []
             for file_path in snapshot_dir.glob("*.tar.zst"):
-                snapshot_id = file_path.stem  # Remove .tar.zst extension
-                size = file_path.stat().st_size
+                stat = file_path.stat()
+                snapshot_id = file_path.name.removesuffix(".tar.zst")
                 snapshots.append({
                     "snapshot_id": snapshot_id,
-                    "size": size,
+                    "size": stat.st_size,
+                    "_mtime": stat.st_mtime,
                     "path": str(file_path)
                 })
-            
+
             # Sort by modification time, newest first
-            snapshots.sort(key=lambda x: Path(x["path"]).stat().st_mtime, reverse=True)
+            snapshots.sort(key=lambda x: x["_mtime"], reverse=True)
+
+            # Remove internal _mtime key before returning
+            for snapshot in snapshots:
+                snapshot.pop("_mtime", None)
             return snapshots
         except Exception as e:
             print(f"Error listing snapshots for user {user_id}: {e}")
