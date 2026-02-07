@@ -216,19 +216,31 @@ async def keep_alive(sandbox_id: str):
 async def mount_path(sandbox_id: str, payload: MountRequest):
     """
     Mounts a host filesystem path into the specified sandbox under the provided alias.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the target sandbox.
-        payload (MountRequest): Mount specification; `alias` is the mount name inside the sandbox, `target` is the host path to mount.
-    
+        payload (MountRequest): Mount specification; `alias` is the mount name inside the sandbox,
+                               `target` is the host path to mount. Only paths under the configured
+                               safe base directory are allowed.
+
     Returns:
         result (dict): Dictionary with key `success` set to `True` on successful mount.
-    
+
     Raises:
-        HTTPException: 404 if the sandbox does not exist or if the mount target is missing.
+        HTTPException: 404 if the sandbox does not exist.
+        HTTPException: 403 if the mount target is outside the allowed base directory.
+        HTTPException: 404 if the mount target is missing.
     """
     try:
-        target = Path(payload.target)
+        target = Path(payload.target).resolve()
+        safe_base = Path("/sandbox/mounts").resolve()
+
+        if not target.is_relative_to(safe_base):
+            raise HTTPException(
+                status_code=403,
+                detail="Mount target must be under the allowed base directory"
+            )
+
         await manager.mount(sandbox_id, payload.alias, target)
         return {"success": True}
     except KeyError:
