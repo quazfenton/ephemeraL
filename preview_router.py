@@ -79,9 +79,9 @@ class PreviewRouter:
                 content=body,
                 params=request.query_params,
             )
-                response = await self.client.send(upstream, stream=True)
-            except httpx.RequestError as exc:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+            response = await self.client.send(upstream, stream=True)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
             excluded_headers = {"content-encoding", "transfer-encoding", "connection"}
             response_headers = {
