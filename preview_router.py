@@ -79,21 +79,29 @@ class PreviewRouter:
                 content=body,
                 params=request.query_params,
             )
-            response = await self.client.send(upstream, stream=True)
-        except httpx.RequestError as exc:
-            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc))
+                response = await self.client.send(upstream, stream=True)
+            except httpx.RequestError as exc:
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-        excluded_headers = {"content-encoding", "transfer-encoding", "connection"}
-        response_headers = {
-            name: value
-            for name, value in response.headers.items()
-            if name.lower() not in excluded_headers
-        }
-        return StreamingResponse(
-            response.aiter_raw(),
-            status_code=response.status_code,
-            headers=response_headers,
-        )
+            excluded_headers = {"content-encoding", "transfer-encoding", "connection"}
+            response_headers = {
+                name: value
+                for name, value in response.headers.items()
+                if name.lower() not in excluded_headers
+            }
+
+            async def _stream_and_close(resp):
+                try:
+                    async for chunk in resp.aiter_raw():
+                        yield chunk
+                finally:
+                    await resp.aclose()
+
+            return StreamingResponse(
+                _stream_and_close(response),
+                status_code=response.status_code,
+                headers=response_headers,
+            )
 
     async def route(self, sandbox_id: str, port: int, path: str, request: Request) -> StreamingResponse:
         """
