@@ -182,12 +182,12 @@ class PreviewRegistry:
         """
         if target.use_fallback:
             return False
-        async with self._lock:
-            if await self.health_check_needed(target):
-                healthy = await self._health_checker.is_healthy(target.effective_url)
+        if await self.health_check_needed(target):
+            healthy = await self._health_checker.is_healthy(target.effective_url)
+            async with self._lock:
                 target.last_health_check = time.time()
-                return healthy
-            return True
+            return healthy
+        return True
 
     async def list_targets(self) -> Dict[Tuple[str, int], PreviewTarget]:
         """
