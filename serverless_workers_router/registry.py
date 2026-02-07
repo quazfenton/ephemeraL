@@ -18,7 +18,7 @@ class PreviewTarget:
     use_fallback: bool = False
     last_health_check: float = field(default_factory=time.time)
 
-    @property
+    `@property`
     def effective_url(self) -> str:
         """
         Selects the active URL for this preview target.
@@ -26,7 +26,9 @@ class PreviewTarget:
         Returns:
             The fallback URL when fallback is active (`use_fallback` is True), otherwise the primary backend URL.
         """
-        return self.fallback_url if self.use_fallback else self.backend_url
+        if self.use_fallback and self.fallback_url:
+            return self.fallback_url
+        return self.backend_url
 
 
 class HealthChecker:
