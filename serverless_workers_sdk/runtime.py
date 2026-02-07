@@ -187,7 +187,7 @@ class SandboxManager:
             env=env,
         )
         try:
-            timeout = timeout or DEFAULT_TIMEOUT
+            timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
         except asyncio.TimeoutError:
             proc.kill()
