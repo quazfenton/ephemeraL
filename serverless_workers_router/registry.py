@@ -171,22 +171,23 @@ class PreviewRegistry:
     async def ensure_primary_healthy(self, target: PreviewTarget) -> bool:
         """
         Determine whether the target's primary backend should be considered healthy, performing a health check if required.
-        
+
         If the target is currently using a fallback, this returns `False`. If a health check is needed (based on the target's last health check timestamp), a health probe is performed and `target.last_health_check` is updated with the current time; the probe result is returned. If no health check is needed, the function returns `True` (the primary is assumed healthy).
-        
+
         Parameters:
             target (PreviewTarget): The preview target to evaluate; `last_health_check` will be updated when a health probe is performed.
-        
+
         Returns:
             bool: `True` if the primary backend is considered healthy, `False` otherwise.
         """
         if target.use_fallback:
             return False
-        if await self.health_check_needed(target):
-            healthy = await self._health_checker.is_healthy(target.effective_url)
-            target.last_health_check = time.time()
-            return healthy
-        return True
+        async with self._lock:
+            if await self.health_check_needed(target):
+                healthy = await self._health_checker.is_healthy(target.effective_url)
+                target.last_health_check = time.time()
+                return healthy
+            return True
 
     async def list_targets(self) -> Dict[Tuple[str, int], PreviewTarget]:
         """
