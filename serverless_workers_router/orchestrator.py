@@ -12,7 +12,7 @@ from container_fallback import ContainerFallback
 
 from dataclasses import dataclass, field
 
-`@dataclass`
+@dataclass
 class FallbackProcess:
     sandbox_id: str
     port: int
