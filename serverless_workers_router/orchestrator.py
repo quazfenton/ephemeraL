@@ -116,14 +116,19 @@ class FallbackOrchestrator:
 
             stdout_handle = open(stdout_path, "a", encoding="utf-8")
             stderr_handle = open(stderr_path, "a", encoding="utf-8")
-            process = subprocess.Popen(
-                cmd,
-                cwd=str(workspace),
-                stdout=stdout_handle,
-                stderr=stderr_handle,
-                env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                start_new_session=True,
-            )
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    cwd=str(workspace),
+                    stdout=stdout_handle,
+                    stderr=stderr_handle,
+                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                    start_new_session=True,
+                )
+            except Exception:
+                stdout_handle.close()
+                stderr_handle.close()
+                raise
 
             self._processes[sandbox_id] = FallbackProcess(
                 sandbox_id=sandbox_id,
