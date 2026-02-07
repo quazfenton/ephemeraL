@@ -28,13 +28,13 @@ class ContainerFallback:
     def __init__(self, base_workspace_dir: str = "/tmp/workspaces", 
                  base_snapshot_dir: str = "/tmp/snapshots"):
         """
-                 Initialize a ContainerFallback instance and ensure base workspace and snapshot directories exist.
-                 
-                 Parameters:
-                     base_workspace_dir (str): Filesystem path used as the parent directory for per-user workspaces (default "/tmp/workspaces").
-                     base_snapshot_dir (str): Filesystem path used to store per-user snapshot archives (default "/tmp/snapshots").
-                 """
-                 self.base_workspace_dir = Path(base_workspace_dir)
+        Initialize a ContainerFallback instance and ensure base workspace and snapshot directories exist.
+        
+        Parameters:
+            base_workspace_dir (str): Filesystem path used as the parent directory for per-user workspaces (default "/tmp/workspaces").
+            base_snapshot_dir (str): Filesystem path used to store per-user snapshot archives (default "/tmp/snapshots").
+        """
+        self.base_workspace_dir = Path(base_workspace_dir)
         self.base_snapshot_dir = Path(base_snapshot_dir)
         
         # Ensure base directories exist
