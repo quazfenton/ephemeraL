@@ -12,7 +12,9 @@ from typing import Dict, Optional, TextIO
 from container_fallback import ContainerFallback
 
 
-@dataclass
+from dataclasses import dataclass, field
+
+`@dataclass`
 class FallbackProcess:
     sandbox_id: str
     port: int
@@ -20,7 +22,7 @@ class FallbackProcess:
     workspace: Path
     stdout: Optional[TextIO]
     stderr: Optional[TextIO]
-    started_at: float = time.time()
+    started_at: float = field(default_factory=time.time)
 
 
 class PortAllocator:
