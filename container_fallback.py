@@ -91,7 +91,7 @@ class ContainerFallback:
             ValueError: If `user_id` or `snapshot_id` does not match the allowed format.
         """
         if not self._validate_user_id(user_id) or not self._validate_user_id(snapshot_id):
-            raise ValueError(f"Invalid user_id or snapshot_id format")
+            raise ValueError("Invalid user_id or snapshot_id format")
         return self.base_snapshot_dir / user_id / f"{snapshot_id}.tar.zst"
     
     def create_container(self, user_id: str, image: str = "ubuntu:22.04") -> bool:
