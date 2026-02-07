@@ -85,7 +85,7 @@ class VirtualFS:
         target = self._resolve(path)
         if not target.exists():
             return []
-        return [str(p) for p in target.iterdir()]
+        return [str(p.relative_to(self.root)) for p in target.iterdir()]
 
     def mount(self, alias: str, target: Path) -> None:
         """
