@@ -42,6 +42,9 @@ def get_user_id(token: str) -> str:
         decode_kwargs = {"algorithms": ["RS256"]}
         audience = os.getenv("JWT_AUDIENCE")
         issuer = os.getenv("JWT_ISSUER")
+        decode_kwargs = {"algorithms": ["RS256"]}
+        audience = os.getenv("JWT_AUDIENCE")
+        issuer = os.getenv("JWT_ISSUER")
         if audience:
             decode_kwargs["audience"] = audience
         else:
