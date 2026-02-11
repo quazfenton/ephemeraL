@@ -92,7 +92,7 @@ def generate_snapshot_id() -> str:
 from fastapi import Body
 
 @app.post("/snapshot/create", response_model=SnapshotResponse)
-async def create_snapshot(current_user: str = Depends(get_current_user), request: dict = Body(None)):
+async def create_snapshot(current_user: str = Depends(get_current_user)):
     """
     Create a snapshot of the requesting user's workspace.
     
@@ -113,12 +113,13 @@ async def create_snapshot(current_user: str = Depends(get_current_user), request
         if not validate_user_id(current_user):
             raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        # Execute snapshot creation script
+        # Execute snapshot creation script with timeout
         result = subprocess.run(
             [str(CREATE_SNAPSHOT_SCRIPT), current_user, snapshot_id],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=60  # 60-second timeout
         )
 
         # Get snapshot size
@@ -130,7 +131,8 @@ async def create_snapshot(current_user: str = Depends(get_current_user), request
 
         size = subprocess.check_output(
             ["du", "-h", snapshot_path],
-            text=True
+            text=True,
+            timeout=30  # 30-second timeout for size calculation
         ).split()[0]
 
         return SnapshotResponse(
@@ -138,6 +140,11 @@ async def create_snapshot(current_user: str = Depends(get_current_user), request
             message="Snapshot created successfully",
             snapshot_id=snapshot_id,
             size=size
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail="Snapshot creation timed out"
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(
@@ -171,18 +178,24 @@ async def restore_snapshot(request: SnapshotRestoreRequest, current_user: str = 
         if not validate_input(request.snapshot_id):
             raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
 
-        # Execute snapshot restoration script
+        # Execute snapshot restoration script with timeout
         result = subprocess.run(
             [str(RESTORE_SNAPSHOT_SCRIPT), current_user, request.snapshot_id],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
+            timeout=60  # 60-second timeout
         )
 
         return SnapshotResponse(
             success=True,
             message="Snapshot restored successfully",
             snapshot_id=request.snapshot_id
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(
+            status_code=504,
+            detail="Snapshot restoration timed out"
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(
@@ -227,7 +240,7 @@ async def list_snapshots(current_user: str = Depends(get_current_user)):
                     continue  # Skip files that would result from path traversal attempts
                 stat = os.stat(filepath)
                 snapshots.append({
-                    "snapshot_id": filename.replace(".tar.zst", ""),
+                    "snapshot_id": filename.removesuffix(".tar.zst"),
                     "size": stat.st_size,
                     "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat()
                 })

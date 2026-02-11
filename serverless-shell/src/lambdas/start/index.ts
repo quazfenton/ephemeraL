@@ -23,31 +23,45 @@ interface StartResponse {
 }
 
 /**
- * Validates the authorization header
+ * Validates the authorization header with proper JWT verification
  */
 const validateAuth = (authHeader?: string): string => {
   if (!authHeader) {
     return DEFAULT_USER;
   }
 
-  // Basic validation for Bearer token format
-  if (authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-
-    try {
-      // Verify the JWT against the identity provider's public key
-      const decoded: any = verify(token, process.env.JWT_SECRET || 'fallback-secret');
-      // Return the user ID from the token's subject claim
-      return decoded.sub || decoded.userId || DEFAULT_USER;
-    } catch (error) {
-      console.error('Token verification failed:', error);
-      // Return default user if token is invalid
-      return DEFAULT_USER;
-    }
+  // Only accept Bearer tokens
+  if (!authHeader.startsWith('Bearer ')) {
+    console.error('Invalid authorization header format');
+    return DEFAULT_USER;
   }
 
-  // Return default user for non-bearer schemes
-  return DEFAULT_USER;
+  const token = authHeader.substring(7);
+
+  try {
+    // In a real implementation, you would verify the JWT against the identity provider's public key
+    // For now, we'll use a more secure approach by verifying with a proper secret
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET environment variable is not configured');
+      return DEFAULT_USER;
+    }
+    
+    const decoded: any = verify(token, process.env.JWT_SECRET);
+    
+    // Extract a stable user identifier from the token (preferably 'sub' claim)
+    const userId = decoded.sub || decoded.userId;
+    if (!userId) {
+      console.error('Token does not contain a valid user identifier');
+      return DEFAULT_USER;
+    }
+    
+    // Return the verified user ID
+    return userId;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    // Return default user if token is invalid
+    return DEFAULT_USER;
+  }
 };
 
 /**
@@ -94,7 +108,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StartResponse> =>
 
   try {
     // Validate environment variables
-    if (!process.env.CLUSTER_NAME || !process.env.TASK_DEF_ARN || !process.env.TABLE_NAME) {
+    if (!process.env.CLUSTER_NAME || !process.env.TASK_DEF_ARN || !process.env.TABLE_NAME ||
+        !process.env.SUBNET_ID || !process.env.SECURITY_GROUP_ID) {
       console.error('Missing required environment variables');
       return {
         statusCode: 500,

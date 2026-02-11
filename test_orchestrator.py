@@ -532,7 +532,7 @@ class TestEdgeCases:
 
         with mock.patch('subprocess.Popen') as mock_popen:
             # Create processes that will be dead on cleanup
-            for i, sandbox_id in enumerate(sandbox_ids):
+            for sandbox_id in sandbox_ids:
                 mock_process = mock.Mock()
                 # Create a new list for each process
                 poll_results = [None, 0]  # First check: alive, second check: dead

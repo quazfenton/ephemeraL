@@ -82,7 +82,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174001',
+        sessionId: '123e4567-e89b-12d3-a456-426614174001',  // Valid UUID format
         command: 'rm -rf /'
       })
     };
@@ -101,7 +101,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174002',
+        sessionId: '123e4567-e89b-12d3-a456-426614174002',  // Valid UUID format
         command: 'echo test'
       })
     };
@@ -131,7 +131,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174003',
+        sessionId: '123e4567-e89b-12d3-a456-426614174003',  // Valid UUID format
         command: 'echo test'
       })
     };
@@ -169,7 +169,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174004',
+        sessionId: '123e4567-e89b-12d3-a456-426614174004',  // Valid UUID format
         command: 'echo test && dangerous command'
       })
     };

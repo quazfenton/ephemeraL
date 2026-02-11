@@ -300,8 +300,12 @@ async def stop_background(sandbox_id: str, job_id: str):
 @app.on_event("shutdown")
 async def shutdown_event():
     """
-    Close the preview registrar and release its associated resources when the application shuts down.
-    
-    This is executed as the FastAPI shutdown event handler to ensure the PreviewRegistrar is cleanly closed.
+    Close the preview registrar and background executor, releasing their associated resources when the application shuts down.
+
+    This is executed as the FastAPI shutdown event handler to ensure all resources are cleanly closed.
     """
+    # Stop all background jobs
+    await backgrounds.shutdown()
+    
+    # Close the preview registrar
     await preview.close()

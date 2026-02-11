@@ -115,9 +115,9 @@ describe('Start Lambda Function', () => {
   test('should return error when required environment variables are missing', async () => {
     // Temporarily remove an environment variable
     const originalClusterName = process.env.CLUSTER_NAME;
-    try {
-      delete process.env.CLUSTER_NAME;
+    delete process.env.CLUSTER_NAME;
 
+    try {
       const event = {
         headers: {
           Authorization: 'Bearer test-token'

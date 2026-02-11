@@ -327,7 +327,7 @@ class ContainerFallback:
             # Create workspace directory
             workspace_path.parent.mkdir(parents=True, exist_ok=True)
             
-            # Extract snapshot
+            # Extract snapshot with path traversal protection
             import tarfile
             import zstandard as zstd
 
@@ -336,7 +336,25 @@ class ContainerFallback:
             with open(snapshot_path, 'rb') as src:
                 with dctx.stream_reader(src) as decompressor:
                     with tarfile.open(fileobj=decompressor, mode='r|') as tar:
-                        tar.extractall(path=str(workspace_path.parent))
+                        # Safe extraction to prevent path traversal
+                        for member in tar.getmembers():
+                            # Check for path traversal attempts
+                            if '..' in member.path or member.path.startswith('/'):
+                                print(f"Warning: Skipping file with unsafe path: {member.path}")
+                                continue
+                            
+                            # Construct the destination path
+                            dest_path = os.path.join(str(workspace_path.parent), member.path)
+                            
+                            # Ensure the destination is within the intended directory
+                            dest_path = os.path.realpath(dest_path)
+                            workspace_parent_realpath = os.path.realpath(str(workspace_path.parent))
+                            
+                            if not dest_path.startswith(workspace_parent_realpath):
+                                print(f"Warning: Skipping file outside target directory: {member.path}")
+                                continue
+                            
+                            tar.extract(member, path=str(workspace_path.parent))
             
             print(f"Restored snapshot: {snapshot_path}")
             

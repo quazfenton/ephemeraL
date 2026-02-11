@@ -171,11 +171,17 @@ class FallbackOrchestrator:
     async def cleanup_stale(self) -> None:
         """
         Remove tracked fallback processes that have exited and stop their containers.
-        
+
         Acquires the orchestrator's internal lock, scans the current process map, removes entries whose subprocess has finished, and invokes the container manager to stop the corresponding sandbox containers.
         """
         async with self._lock:
             for sandbox_id, info in list(self._processes.items()):
                 if info.process.poll() is not None:
+                    # Close file handles to prevent file descriptor leaks
+                    if info.stdout:
+                        info.stdout.close()
+                    if info.stderr:
+                        info.stderr.close()
+                    
                     self._processes.pop(sandbox_id)
                     self.container.stop_container(sandbox_id)

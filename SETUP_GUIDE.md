@@ -326,15 +326,17 @@ export AWS_DEFAULT_REGION=your_region
 cat > /home/ubuntu/backup_snapshots.sh << 'EOF'
 #!/bin/bash
 # Backup all snapshots to S3 or remote storage
+# Create logs directory if it doesn't exist
+mkdir -p /home/ubuntu/logs
 # Log output and errors for monitoring
-aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ >> /home/ubuntu/snapshot-backup.log 2>&1
+aws s3 sync /srv/snapshots/ s3://your-bucket/snapshots/ >> /home/ubuntu/logs/snapshot-backup.log 2>&1
 EOF
 
 chmod +x /home/ubuntu/backup_snapshots.sh
 
 # Add to crontab for daily backups with logging
 crontab -e
-# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /home/ubuntu/cron-snapshot-backup.log 2>&1
+# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /home/ubuntu/logs/cron-snapshot-backup.log 2>&1
 ```
 
 ## Troubleshooting

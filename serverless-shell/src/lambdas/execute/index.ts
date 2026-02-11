@@ -36,7 +36,7 @@ const validateAndSanitizeCommand = (command: string): string => {
     /chown\s+/i,                     // chown commands
     /\$\(.*\)/,                      // Command substitution with $()
     /`.*`/,                          // Command substitution with backticks
-    /\$\{.*\}/,                      // Parameter expansion with ${...}
+    /\$\{[^}]*\}/,                   // Parameter expansion with ${...} - blocks variable expansion
     /;\s*rm/i,                       // Semicolon followed by rm
     /&&\s*rm/i,                      // && followed by rm
     /\|\|\s*rm/i,                    // || followed by rm
@@ -278,7 +278,7 @@ export const handler = async (event: APIGatewayEvent): Promise<ExecuteResponse> 
       task: taskArn,
       container: process.env.CONTAINER_NAME,
       interactive: true,
-      command: ["/bin/sh", "-c", safeCommand]
+      command: `/bin/sh -c "${safeCommand}"`
     }));
 
     // 5. Return Session Details

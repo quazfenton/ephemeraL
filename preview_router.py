@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import httpx
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
+from fastapi.background import BackgroundTask
 from pydantic import BaseModel, HttpUrl
 
 from serverless_workers_router.orchestrator import FallbackOrchestrator
@@ -79,29 +80,30 @@ class PreviewRouter:
                 content=body,
                 params=request.query_params,
             )
-                response = await self.client.send(upstream, stream=True)
-            except httpx.RequestError as exc:
-                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+            response = await self.client.send(upstream, stream=True)
+        except httpx.RequestError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
-            excluded_headers = {"content-encoding", "transfer-encoding", "connection"}
-            response_headers = {
-                name: value
-                for name, value in response.headers.items()
-                if name.lower() not in excluded_headers
-            }
+        excluded_headers = {"content-encoding", "transfer-encoding", "connection"}
+        response_headers = {
+            name: value
+            for name, value in response.headers.items()
+            if name.lower() not in excluded_headers
+        }
 
-            async def _stream_and_close(resp):
-                try:
-                    async for chunk in resp.aiter_raw():
-                        yield chunk
-                finally:
-                    await resp.aclose()
+        async def _stream_and_close(resp):
+            try:
+                async for chunk in resp.aiter_raw():
+                    yield chunk
+            finally:
+                await resp.aclose()
 
-            return StreamingResponse(
-                _stream_and_close(response),
-                status_code=response.status_code,
-                headers=response_headers,
-            )
+        return StreamingResponse(
+            _stream_and_close(response),
+            status_code=response.status_code,
+            headers=response_headers,
+            background=BackgroundTask(response.aclose)  # Ensure response is closed even if client disconnects
+        )
 
     async def route(self, sandbox_id: str, port: int, path: str, request: Request) -> StreamingResponse:
         """

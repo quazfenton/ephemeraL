@@ -45,7 +45,7 @@ describe('Stop Lambda Function', () => {
         Authorization: 'Bearer test-token'
       },
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174000'
+        sessionId: '123e4567-e89b-12d3-a456-426614174000'  // Valid UUID format
       })
     };
 
@@ -77,7 +77,7 @@ describe('Stop Lambda Function', () => {
         Authorization: 'Bearer test-token'
       },
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174001'
+        sessionId: '123e4567-e89b-12d3-a456-426614174001'  // Valid UUID format
       })
     };
 
@@ -109,7 +109,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174004'
+        sessionId: '123e4567-e89b-12d3-a456-426614174004'  // Valid UUID format
       })
     };
 
@@ -154,7 +154,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174002'
+        sessionId: '123e4567-e89b-12d3-a456-426614174002'  // Valid UUID format
       })
     };
 
@@ -187,7 +187,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174003'
+        sessionId: '123e4567-e89b-12d3-a456-426614174003'  // Valid UUID format
       })
     };
 

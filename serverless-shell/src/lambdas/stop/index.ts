@@ -1,5 +1,6 @@
 import { ECSClient, StopTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
-import { DynamoDBClient, DeleteItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, DeleteItemCommand, GetItemCommand, GetItemCommandInput } from "@aws-sdk/client-dynamodb";
+import { verify } from 'jsonwebtoken';
 
 const ecs = new ECSClient({});
 const ddb = new DynamoDBClient({});
@@ -18,8 +19,6 @@ interface StopResponse {
   headers: Record<string, string>;
   body: string;
 }
-
-import { verify } from 'jsonwebtoken';
 
 /**
  * Validates the session belongs to the requesting user
@@ -172,6 +171,7 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
     const sessionUser = sessionResult.Item.user.S;
 
     // Check if task is still running before attempting to stop
+    let taskStoppedSuccessfully = true;
     try {
       const taskDesc = await ecs.send(new DescribeTasksCommand({
         cluster: process.env.CLUSTER_NAME,
@@ -182,27 +182,30 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
         const task = taskDesc.tasks[0];
         if (task.lastStatus === "STOPPED" || task.lastStatus === "DELETED") {
           console.log(`Task for session ${sessionId} is already stopped`);
-          // Still delete the session record even if task is already stopped
+          // Task is already stopped, so we can safely delete the session record
         } else {
           // 2. Stop Fargate Task
           await ecs.send(new StopTaskCommand({
             cluster: process.env.CLUSTER_NAME,
             task: taskArn
           }));
-          
+
           console.log(`Task ${taskArn} stopped for session ${sessionId}`);
         }
       }
     } catch (ecsError) {
       console.error(`Error checking/stopping task ${taskArn} for session ${sessionId}:`, ecsError);
-      // Continue with deleting the session record even if ECS operation fails
+      taskStoppedSuccessfully = false;
+      // Don't delete the session record if ECS operation fails
     }
 
-    // 3. Remove session from DB
-    await ddb.send(new DeleteItemCommand({
-      TableName: process.env.TABLE_NAME,
-      Key: { sessionId: { S: sessionId } }
-    }));
+    // 3. Remove session from DB only if the task was successfully stopped
+    if (taskStoppedSuccessfully) {
+      await ddb.send(new DeleteItemCommand({
+        TableName: process.env.TABLE_NAME,
+        Key: { sessionId: { S: sessionId } }
+      }));
+    }
 
     console.log(`Session ${sessionId} terminated for user ${sessionUser}`);
 

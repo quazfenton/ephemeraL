@@ -28,7 +28,7 @@ Snapshots
 
 ## Components
 
-### 1. Authentication Module (`file auth.py`)
+### 1. Authentication Module (`auth.py`)
 
 - JWT token validation
 - User ID extraction
@@ -36,10 +36,10 @@ Snapshots
 
 ### 2. Snapshot Scripts
 
-- `file create_snapshot.sh`: Create filesystem snapshots
-- `file restore_snapshot.sh`: Restore from snapshots
+- `create_snapshot.sh`: Create filesystem snapshots
+- `restore_snapshot.sh`: Restore from snapshots
 
-### 3. Snapshot API (`file snapshot_api.py`)
+### 3. Snapshot API (`snapshot_api.py`)
 
 - REST API for snapshot operations
 - Automatic snapshot management
@@ -47,8 +47,8 @@ Snapshots
 
 ### 4. Documentation
 
-- `file data_models.md`: Data structures and architecture
-- `file identity_config.md`: Identity provider setup guide
+- `data_models.md`: Data structures and architecture
+- `identity_config.md`: Identity provider setup guide
 
 ## Setup
 
@@ -70,7 +70,7 @@ pip install -r requirements.txt
 2. Configure identity provider:
 
    - Choose an IdP (Auth0, Clerk, Supabase, or Keycloak)
-   - Update `PUBLIC_KEY` in `file auth.py` with your IdP's public key
+   - Update `PUBLIC_KEY` in `auth.py` with your IdP's public key
 
 3. Create required directories:
 
@@ -217,6 +217,4 @@ Retention: Keep last 5 snapshots, delete older ones.
 | --- | --- |
 | Local disk | Development, fast access |
 | S3-compatible | Production, scalable |
-| R2 / Backblaze | Cost-optimized |
-
-## 
+| R2 / Backblaze | Cost-optimized | 

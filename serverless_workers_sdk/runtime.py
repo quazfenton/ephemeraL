@@ -263,9 +263,9 @@ class SandboxManager:
     async def remove_background(self, sandbox_id: str, job_id: str) -> None:
         """
         Stop and remove a background job from the specified sandbox.
-        
+
         If a background job with the given job_id exists in the sandbox, its task is cancelled and a "sandbox.background.stopped" event is recorded.
-        
+
         Raises:
             KeyError: If the sandbox with `sandbox_id` does not exist.
         """
@@ -273,4 +273,8 @@ class SandboxManager:
         job = sandbox.background_jobs.pop(job_id, None)
         if job:
             job.task.cancel()
+            try:
+                await job.task  # Wait for the task to be cancelled
+            except asyncio.CancelledError:
+                pass  # Expected when task is cancelled
             await self._recorder.record("sandbox.background.stopped", sandbox_id, {"job_id": job_id})
