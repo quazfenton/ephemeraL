@@ -22,9 +22,13 @@ if [ -z "$ACTION" ] || [ -z "$USER_ID" ]; then
     exit 1
 fi
 
-# Validate USER_ID format (alphanumeric, underscore, hyphen only)
-if ! [[ "$USER_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed."
+# Validate USER_ID format (alphanumeric, underscore, hyphen, pipe allowed for IdP formats)
+# Block dot-segments to prevent path traversal
+if [[ "$USER_ID" =~ \.\. ]] || [[ "$USER_ID" =~ ^\.\.$ ]] || [[ "$USER_ID" =~ ^\.$ ]]; then
+    echo "Error: Invalid user_id format. Dot-segments ('..' or '.') not allowed to prevent path traversal."
+    exit 1
+elif ! [[ "$USER_ID" =~ ^[a-zA-Z0-9_\-\|]+$ ]]; then
+    echo "Error: Invalid user_id format. Only alphanumeric characters, underscores, hyphens, and pipes allowed."
     exit 1
 fi
 

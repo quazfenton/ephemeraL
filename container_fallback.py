@@ -432,11 +432,15 @@ def detect_docker_availability():
 def main():
     """
     CLI entry point for the fallback container manager that parses command-line arguments and performs container-like actions for a given user.
-    
+
     Parses sys.argv to perform one of the supported actions: create, start, stop, restart, remove, status, snapshot, or restore for the specified user_id. The snapshot and restore actions require an additional snapshot_id argument. The function validates the user_id format, invokes the corresponding ContainerFallback method, prints usage or status messages as needed, and terminates the process with exit code 0 on success or 1 on failure.
     """
     if len(sys.argv) < 3:
-        print("Usage: container_fallback.py <action> <user_id> [additional_args]")
+        print("Usage: container_fallback.py [options] <action> <user_id> [additional_args]")
+        print("")
+        print("Options:")
+        print("  --workspace-dir DIR    Directory for workspaces (default: /tmp/workspaces)")
+        print("  --snapshot-dir DIR     Directory for snapshots (default: /tmp/snapshots)")
         print("")
         print("Actions:")
         print("  create     - Create a workspace for user")
@@ -449,13 +453,42 @@ def main():
         print("  restore    - Restore from snapshot (requires snapshot_id)")
         print("")
         print("Example: container_fallback.py create u_123")
+        print("Example: container_fallback.py --workspace-dir /custom/workspaces --snapshot-dir /custom/snapshots create u_123")
         sys.exit(1)
+
+    # Parse options
+    workspace_dir = "/tmp/workspaces"
+    snapshot_dir = "/tmp/snapshots"
+    args = sys.argv[1:]
     
-    action = sys.argv[1]
-    user_id = sys.argv[2]
+    # Process options
+    i = 0
+    while i < len(args) and args[i].startswith('--'):
+        if args[i] == '--workspace-dir' and i + 1 < len(args):
+            workspace_dir = args[i + 1]
+            i += 2
+        elif args[i] == '--snapshot-dir' and i + 1 < len(args):
+            snapshot_dir = args[i + 1]
+            i += 2
+        else:
+            print(f"Error: Unknown option '{args[i]}'")
+            sys.exit(1)
     
+    if i >= len(args):
+        print("Error: Missing action and user_id")
+        sys.exit(1)
+        
+    action = args[i]
+    if i + 1 >= len(args):
+        print("Error: Missing user_id")
+        sys.exit(1)
+    user_id = args[i + 1]
+
     # Initialize fallback container manager
-    container_manager = ContainerFallback()
+    container_manager = ContainerFallback(
+        base_workspace_dir=workspace_dir,
+        base_snapshot_dir=snapshot_dir
+    )
     
     # Validate user_id format
     if not container_manager._validate_user_id(user_id):
@@ -488,18 +521,24 @@ def main():
         sys.exit(0)
     
     elif action == "snapshot":
-        if len(sys.argv) < 4:
-            print("Usage: container_fallback.py snapshot <user_id> <snapshot_id>")
+        # Calculate the correct index for snapshot_id based on parsed arguments
+        # The original index would be the position after action and user_id
+        original_argv_idx = 3  # This is sys.argv[3] in the original
+        # But we need to map this to our args array
+        # If we consumed i arguments for options, then args[i] is action, args[i+1] is user_id, args[i+2] is snapshot_id
+        if len(args) < i + 3:  # Need action, user_id, and snapshot_id
+            print("Usage: container_fallback.py [options] snapshot <user_id> <snapshot_id>")
             sys.exit(1)
-        snapshot_id = sys.argv[3]
+        snapshot_id = args[i + 2]
         success = container_manager.create_snapshot(user_id, snapshot_id)
         sys.exit(0 if success else 1)
-    
+
     elif action == "restore":
-        if len(sys.argv) < 4:
-            print("Usage: container_fallback.py restore <user_id> <snapshot_id>")
+        # Calculate the correct index for snapshot_id based on parsed arguments
+        if len(args) < i + 3:  # Need action, user_id, and snapshot_id
+            print("Usage: container_fallback.py [options] restore <user_id> <snapshot_id>")
             sys.exit(1)
-        snapshot_id = sys.argv[3]
+        snapshot_id = args[i + 2]
         success = container_manager.restore_snapshot(user_id, snapshot_id)
         sys.exit(0 if success else 1)
     

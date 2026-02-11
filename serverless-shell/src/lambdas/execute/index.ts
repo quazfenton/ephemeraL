@@ -66,11 +66,20 @@ const validateAndSanitizeCommand = (command: string): string => {
  * Validates the session belongs to the requesting user
  */
 const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolean => {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader) {
     return false;
   }
 
-  const token = authHeader.substring(7);
+  // Normalize the Authorization header to handle case variations
+  const normalizedHeader = authHeader.trim();
+  const bearerPrefix = 'Bearer ';
+  
+  // Check if the header starts with 'Bearer ' (case-insensitive)
+  if (!normalizedHeader.toLowerCase().startsWith('bearer ')) {
+    return false;
+  }
+
+  const token = normalizedHeader.substring(bearerPrefix.length);
 
   try {
     // In a real implementation, you would verify the JWT against your identity provider's public key
@@ -78,7 +87,8 @@ const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolea
     const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
       console.error('JWT_SECRET environment variable is not configured');
-      return false;
+      // Fail closed if no secret is configured
+      throw new Error('Authentication system misconfigured');
     }
     const decoded: any = verify(token, jwtSecret);
     const userId = decoded.sub || decoded.userId;

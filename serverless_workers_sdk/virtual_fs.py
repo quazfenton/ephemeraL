@@ -34,25 +34,40 @@ class VirtualFS:
         """
         if path.startswith("/"):
             path = path[1:]
-        
+
         # Check if the first component is a registered mount alias
-        if "/" in path:
-            first_component = path.split("/")[0]
-        else:
-            first_component = path
-        
-        if first_component in self.mounts:
+        parts = path.split("/")
+        if parts and parts[0] in self.mounts:
             # If it's a mount alias, resolve to the mounted target
-            target_path = str(self.mounts[first_component])
-            remaining_path = "/".join(path.split("/")[1:]) if len(path.split("/")) > 1 else ""
-            if remaining_path:
-                return Path(target_path) / remaining_path
+            target_path = str(self.mounts[parts[0]])
+            remaining_parts = parts[1:] if len(parts) > 1 else []
+            if remaining_parts:
+                return Path(target_path).joinpath(*remaining_parts)
             else:
                 return Path(target_path)
+
+        # Split path into components and check for directory traversal
+        parts = path.split("/")
+        normalized_parts = []
+        for part in parts:
+            if part == "..":
+                if not normalized_parts:
+                    # Attempting to traverse above the root
+                    raise ValueError("directory traversal prevented")
+                normalized_parts.pop()  # Go up one level
+            elif part != "." and part != "":  # Skip current directory references and empty parts
+                normalized_parts.append(part)
+
+        # Join the normalized parts with the root
+        result_path = self.root.joinpath(*normalized_parts)
         
-        if ".." in path:
+        # Verify that the resolved path is still under the root to prevent traversal
+        try:
+            result_path.resolve().relative_to(self.root.resolve())
+        except ValueError:
             raise ValueError("directory traversal prevented")
-        return self.root / path
+        
+        return result_path
 
     def write(self, path: str, data: bytes) -> None:
         """

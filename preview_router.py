@@ -7,6 +7,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from fastapi.background import BackgroundTask
 from pydantic import BaseModel, HttpUrl
+from contextlib import asynccontextmanager
 
 from serverless_workers_router.orchestrator import FallbackOrchestrator
 from serverless_workers_router.registry import HealthChecker, PreviewRegistry
@@ -149,7 +150,14 @@ class PreviewRouter:
         await self.fallback.cleanup_stale()
 
 
-app = FastAPI(title="Sandbox Preview Router", version="1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: nothing needed for now
+    yield
+    # Shutdown: clean up resources
+    await router.shutdown()
+
+app = FastAPI(title="Sandbox Preview Router", version="1.0", lifespan=lifespan)
 router = PreviewRouter()
 
 
@@ -219,11 +227,3 @@ async def proxy_preview(sandbox_id: str, port: int, path: str, request: Request)
     return await router.route(sandbox_id, port, path, request)
 
 
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    """
-    Perform application shutdown tasks for the preview router.
-    
-    Closes the router's HTTP client and performs cleanup of any stale fallback containers.
-    """
-    await router.shutdown()

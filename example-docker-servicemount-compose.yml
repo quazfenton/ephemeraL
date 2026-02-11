@@ -1,15 +1,28 @@
 version: '3.8'
 
 services:
+  docker-socket-proxy:
+    image: tecnativa/docker-socket-proxy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1
+      - IMAGES=1
+      - VERSION=1
+    networks:
+      - docker-network
+
   docker-client:
     image: docker:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    networks:
+      - docker-network
+    depends_on:
+      - docker-socket-proxy
     command: >
       sh -c "
-        echo 'Docker client ready to use mounted socket' &&
+        echo 'Docker client ready to use proxy' &&
         docker version &&
         sleep infinity
       "
@@ -17,8 +30,14 @@ services:
   # Alternative example with a custom application that uses Docker
   docker-enabled-app:
     build: .
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+    networks:
+      - docker-network
+    depends_on:
+      - docker-socket-proxy
     # Your application command here
+
+networks:
+  docker-network:
+    driver: bridge

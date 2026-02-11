@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test script to verify fallback functionality
 
-set -e  # Exit on any error
+set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 
 echo "Testing fallback container management..."
 
@@ -19,7 +19,7 @@ cleanup() {
     export PATH="$OLD_PATH"
     rm -rf "$TEST_DIR"
 }
-trap cleanup EXIT
+trap cleanup EXIT INT TERM
 
 # Create a fake docker command that always fails
 echo '#!/bin/bash' > "$TEST_DIR/docker"
@@ -33,24 +33,60 @@ export PATH="$TEST_DIR:$PATH"
 echo "Running with simulated Docker-unavailable environment..."
 
 echo "Testing container creation..."
-"$SCRIPT_DIR/manage_container.sh" create test_user_123
+if "$SCRIPT_DIR/manage_container.sh" create test_user_123; then
+    echo "✓ Container creation succeeded"
+else
+    echo "✗ Container creation failed"
+    exit 1
+fi
 
 echo "Testing container status..."
-"$SCRIPT_DIR/manage_container.sh" status test_user_123
+STATUS=$("$SCRIPT_DIR/manage_container.sh" status test_user_123 2>&1)
+if echo "$STATUS" | grep -q "running"; then
+    echo "✓ Container status check succeeded - container is running"
+else
+    echo "✗ Container status check failed - expected 'running', got: $STATUS"
+    exit 1
+fi
 
 echo "Testing snapshot creation..."
-"$SCRIPT_DIR/create_snapshot.sh" test_user_123 test_snapshot_001
+if "$SCRIPT_DIR/create_snapshot.sh" test_user_123 test_snapshot_001; then
+    echo "✓ Snapshot creation succeeded"
+else
+    echo "✗ Snapshot creation failed"
+    exit 1
+fi
 
 echo "Testing snapshot restoration..."
-"$SCRIPT_DIR/restore_snapshot.sh" test_user_123 test_snapshot_001
+if "$SCRIPT_DIR/restore_snapshot.sh" test_user_123 test_snapshot_001; then
+    echo "✓ Snapshot restoration succeeded"
+else
+    echo "✗ Snapshot restoration failed"
+    exit 1
+fi
 
 echo "Testing container stop..."
-"$SCRIPT_DIR/manage_container.sh" stop test_user_123
+if "$SCRIPT_DIR/manage_container.sh" stop test_user_123; then
+    echo "✓ Container stop succeeded"
+else
+    echo "✗ Container stop failed"
+    exit 1
+fi
 
 echo "Testing container start..."
-"$SCRIPT_DIR/manage_container.sh" start test_user_123
+if "$SCRIPT_DIR/manage_container.sh" start test_user_123; then
+    echo "✓ Container start succeeded"
+else
+    echo "✗ Container start failed"
+    exit 1
+fi
 
 echo "Testing container removal..."
-"$SCRIPT_DIR/manage_container.sh" remove test_user_123
+if "$SCRIPT_DIR/manage_container.sh" remove test_user_123; then
+    echo "✓ Container removal succeeded"
+else
+    echo "✗ Container removal failed"
+    exit 1
+fi
 
 echo "All tests completed successfully!"

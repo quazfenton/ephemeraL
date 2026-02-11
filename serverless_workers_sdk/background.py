@@ -54,18 +54,23 @@ class BackgroundExecutor:
         async def loop() -> None:
             """
             Continuously executes the configured command inside the sandbox at the given interval.
-            
+
             Each iteration calls the manager's exec_command with a 10-second timeout using the captured
             sandbox_id, command, and args, then awaits asyncio.sleep(interval). The loop runs indefinitely
             until the surrounding task is cancelled.
             """
             while True:
-                await self.manager.exec_command(
-                    sandbox_id=sandbox_id,
-                    command=command,
-                    args=args,
-                    timeout=10,
-                )
+                try:
+                    await self.manager.exec_command(
+                        sandbox_id=sandbox_id,
+                        command=command,
+                        args=args,
+                        timeout=10,
+                    )
+                except Exception as e:
+                    # Log the error but continue the loop to avoid terminating the background job
+                    print(f"Error in background job {job_id} for sandbox {sandbox_id}: {e}")
+                
                 await asyncio.sleep(interval)
 
         task = asyncio.create_task(loop())

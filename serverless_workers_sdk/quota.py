@@ -21,7 +21,10 @@ class QuotaManager:
 
     def allow_execution(self, sandbox_id: str) -> bool:
         """
-        Check whether the specified sandbox has remaining executions available within the current one-hour window.
+        DEPRECATED: Check and record an execution atomically to prevent race conditions.
+        
+        This method has a race condition when used alongside record_execution.
+        Use check_and_record_execution instead for atomic operation.
 
         Parameters:
             sandbox_id (str): Identifier of the sandbox to check.
@@ -29,15 +32,8 @@ class QuotaManager:
         Returns:
             `true` if the sandbox has recorded fewer than `limit_per_hour` executions in the past hour, `false` otherwise.
         """
-        now = time.time()
-        window = now - 3600
-        
-        with self._lock:
-            timestamps = self._counters.setdefault(sandbox_id, [])
-            # Remove expired timestamps
-            while timestamps and timestamps[0] < window:
-                timestamps.pop(0)
-            return len(timestamps) < self.limit_per_hour
+        # Call the atomic method to prevent race conditions
+        return self.check_and_record_execution(sandbox_id)
 
     def record_execution(self, sandbox_id: str) -> None:
         """

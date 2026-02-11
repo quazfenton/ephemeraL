@@ -14,7 +14,7 @@ from container_fallback import ContainerFallback
 
 from dataclasses import dataclass, field
 
-`@dataclass`
+@dataclass
 class FallbackProcess:
     sandbox_id: str
     port: int
@@ -29,7 +29,7 @@ class PortAllocator:
     def __init__(self, start: int = 33000, end: int = 33999) -> None:
         """
         Initialize the port allocator with a configurable inclusive port range and prepare it for concurrent async allocation.
-        
+
         Parameters:
             start (int): First port in the inclusive allocation range (default 33000).
             end (int): Last port in the inclusive allocation range (default 33999). Must be greater than or equal to `start`.
@@ -37,21 +37,50 @@ class PortAllocator:
         self._start = start
         self._end = end
         self._current = start
+        self._allocated_ports = set()
         self._lock = asyncio.Lock()
 
     async def allocate(self) -> int:
         """
         Allocate the next available port from the configured range, advancing the allocator and wrapping to the start when the end is exceeded.
-        
+
         Returns:
             port (int): Allocated port number.
         """
         async with self._lock:
+            # Find an unallocated port in the range
+            original_start = self._current
+            while self._current <= self._end:
+                if self._current not in self._allocated_ports:
+                    self._allocated_ports.add(self._current)
+                    port = self._current
+                    self._current += 1
+                    return port
+                self._current += 1
+            
+            # Wrap around if needed
             if self._current > self._end:
                 self._current = self._start
-            port = self._current
-            self._current += 1
-            return port
+                while self._current < original_start:
+                    if self._current not in self._allocated_ports:
+                        self._allocated_ports.add(self._current)
+                        port = self._current
+                        self._current += 1
+                        return port
+                    self._current += 1
+            
+            # If all ports are allocated, raise an exception
+            raise RuntimeError("All ports in the range are allocated")
+
+    def release(self, port: int) -> None:
+        """
+        Release an allocated port so it can be reused.
+
+        Parameters:
+            port (int): The port number to release.
+        """
+        if self._start <= port <= self._end:
+            self._allocated_ports.discard(port)
 
 
 class FallbackOrchestrator:
@@ -146,9 +175,9 @@ class FallbackOrchestrator:
     async def stop_container(self, sandbox_id: str) -> None:
         """
         Stop and clean up the container-backed HTTP server for a sandbox.
-        
+
         If a tracked fallback process for the given sandbox exists and is running, terminate it (wait up to 5 seconds, then kill if it doesn't exit), close its stdout/stderr handles to flush logs, and instruct the container manager to stop the container. If no process is tracked for the sandbox, the call is a no-op.
-        
+
         Parameters:
             sandbox_id (str): Identifier of the sandbox whose container and associated process should be stopped.
         """
@@ -166,6 +195,8 @@ class FallbackOrchestrator:
                 info.stdout.close()
             if info.stderr:
                 info.stderr.close()
+            # Release the port back to the allocator
+            self.port_allocator.release(info.port) if info else None
             self.container.stop_container(sandbox_id)
 
     async def cleanup_stale(self) -> None:
@@ -182,6 +213,9 @@ class FallbackOrchestrator:
                         info.stdout.close()
                     if info.stderr:
                         info.stderr.close()
+
+                    # Release the port back to the allocator
+                    self.port_allocator.release(info.port)
                     
                     self._processes.pop(sandbox_id)
                     self.container.stop_container(sandbox_id)

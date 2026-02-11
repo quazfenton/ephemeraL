@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-RECORD_FILE = Path(os.getenv("SERVERLESS_RECORDER_FILE", "/tmp/serverless_events.log"))
+RECORD_FILE = Path(os.getenv("SERVERLESS_RECORDER_FILE", "./serverless_events.log"))
 _RECORD_LOCK = threading.Lock()
 
 

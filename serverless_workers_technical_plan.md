@@ -332,6 +332,7 @@ The system implements multiple layers of security:
 # sandbox/security.py
 import resource
 import sys
+import time
 from typing import Optional
 
 class SecurityContext:
@@ -351,14 +352,14 @@ class SecurityContext:
         
     def validate_path(self, path: str) -> bool:
         """Validate file path to prevent directory traversal"""
-        if ".." in path or path.startswith("/"):
+        if ".." in path:
             return False
-            
+
         # Check if path is in allowed directories
         for allowed_dir in self.file_access_whitelist:
             if path.startswith(allowed_dir):
                 return True
-                
+
         return False
         
     def validate_command(self, cmd: str) -> bool:
@@ -394,27 +395,32 @@ class NetworkSecurity:
     def restricted_socket(self):
         """Context manager to restrict socket operations"""
         original_socket = socket.socket
-        
+        # Capture the current instance's attributes to pass to RestrictedSocket
+        blocked_hosts = self.blocked_hosts
+        allowed_hosts = self.allowed_hosts
+        outbound_connections = self.outbound_connections
+
         class RestrictedSocket:
             def __init__(self, family=socket.AF_INET, type=socket.SOCK_STREAM, proto=0, fileno=None):
                 if family != socket.AF_INET or type != socket.SOCK_STREAM:
                     raise PermissionError("Only TCP IPv4 connections allowed")
-                    
+
             def connect(self, address):
                 host, port = address
-                if host in self.blocked_hosts:
+                if host in blocked_hosts:
                     raise PermissionError(f"Connection to {host} blocked")
-                if host not in self.allowed_hosts and not self._is_allowed_port(port):
+                if host not in allowed_hosts and not self._is_allowed_port(port):
                     raise PermissionError(f"Connection to {host}:{port} not allowed")
-                
+
                 # Track outbound connection
-                self.outbound_connections.append(address)
-                return original_socket.connect(self, address)
-                
+                outbound_connections.append(address)
+                # Note: This simplified example doesn't actually make the connection
+                # In a real implementation, you'd need to handle the actual socket connection differently
+
             def _is_allowed_port(self, port: int) -> bool:
                 # Allow only common web ports
                 return port in [80, 443, 8080, 3000, 5000, 8000]
-                
+
         socket.socket = RestrictedSocket
         try:
             yield

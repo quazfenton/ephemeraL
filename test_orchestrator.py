@@ -539,10 +539,15 @@ class TestEdgeCases:
                 poll_results = [None, 0]  # First check: alive, second check: dead
                 mock_process.poll = mock.Mock(side_effect=poll_results)
                 mock_processes.append(mock_process)
-            
+
+            # Set up the side effect to return different processes
             mock_popen.side_effect = mock_processes
-            for sandbox_id in sandbox_ids:
-                await orchestrator.promote_to_container(sandbox_id)
+            
+            # Promote each sandbox separately to ensure different processes are used
+            created_urls = []
+            for i, sandbox_id in enumerate(sandbox_ids):
+                url = await orchestrator.promote_to_container(sandbox_id)
+                created_urls.append(url)
 
             # All should be present
             assert len(orchestrator._processes) == 3
