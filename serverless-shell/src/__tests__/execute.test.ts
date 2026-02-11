@@ -27,7 +27,7 @@ describe('Execute Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174000' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -51,7 +51,7 @@ describe('Execute Lambda Function', () => {
         Authorization: 'Bearer test-token'
       },
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174000',
+        sessionId: 'test-session-id',
         command: 'echo hello'
       })
     };
@@ -82,7 +82,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174001',  // Valid UUID format
+        sessionId: 'valid-session-id-12345678-1234-5678-9012-123456789012',
         command: 'rm -rf /'
       })
     };
@@ -101,7 +101,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174002',  // Valid UUID format
+        sessionId: 'non-existent-session-id',
         command: 'echo test'
       })
     };
@@ -117,7 +117,7 @@ describe('Execute Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174003' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -131,7 +131,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174003',  // Valid UUID format
+        sessionId: 'test-session-id',
         command: 'echo test'
       })
     };
@@ -147,7 +147,7 @@ describe('Execute Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174004' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -169,7 +169,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174004',  // Valid UUID format
+        sessionId: 'test-session-id',
         command: 'echo test && dangerous command'
       })
     };
@@ -188,7 +188,7 @@ describe('Execute Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: 'invalid-session-id',  // This should remain as an invalid format for this test
+        sessionId: 'invalid-session-id',
         command: 'echo test'
       })
     };

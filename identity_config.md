@@ -62,8 +62,8 @@ def validate_user_id(user_id: str) -> bool:
     """
     Validate user ID to prevent path traversal and command injection
     """
-    # Allow alphanumeric characters, hyphens, underscores, and pipe (for IdP formats like auth0|...)
-    return bool(re.match(r'^(?!.*\.\.)[a-zA-Z0-9_\-\|:.@]+$', user_id))
+    # Allow only alphanumeric characters, hyphens, and underscores
+    return bool(re.match(r'^[a-zA-Z0-9_-]+$', user_id))
 
 def get_user_id(token: str):
     payload = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"])

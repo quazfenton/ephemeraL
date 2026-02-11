@@ -16,6 +16,3 @@ httpx>=0.25.0
 
 # Environment Variables
 python-dotenv>=1.0.0
-
-# Compression Library
-zstandard>=0.22.0

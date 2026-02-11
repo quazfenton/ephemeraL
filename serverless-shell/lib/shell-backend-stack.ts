@@ -68,18 +68,14 @@ export class ShellBackendStack extends cdk.Stack {
       iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AmazonECSTaskExecutionRolePolicy')
     );
 
-    // Determine the stage for conditional data tracing
-    const stageName = this.node.tryGetContext('stage') || 'dev';
-    const isProd = stageName === 'prod' || stageName === 'production';
-    
     // 5. API Gateway with enhanced security
     const api = new apigateway.RestApi(this, 'ShellApi', {
       restApiName: 'Serverless Shell API',
       description: 'API for managing serverless shell sessions',
-      deployOptions: {
-        stageName: stageName,
+      deployOptions: { 
+        stageName: 'v1',
         loggingLevel: apigateway.MethodLoggingLevel.INFO,
-        dataTraceEnabled: !isProd, // Disable data tracing in production for security
+        dataTraceEnabled: true,
         metricsEnabled: true
       },
       defaultCorsPreflightOptions: {
