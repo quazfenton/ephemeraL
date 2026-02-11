@@ -532,12 +532,16 @@ class TestEdgeCases:
 
         with mock.patch('subprocess.Popen') as mock_popen:
             # Create processes that will be dead on cleanup
+            mock_processes = []
             for sandbox_id in sandbox_ids:
                 mock_process = mock.Mock()
                 # Create a new list for each process
                 poll_results = [None, 0]  # First check: alive, second check: dead
                 mock_process.poll = mock.Mock(side_effect=poll_results)
-                mock_popen.return_value = mock_process
+                mock_processes.append(mock_process)
+            
+            mock_popen.side_effect = mock_processes
+            for sandbox_id in sandbox_ids:
                 await orchestrator.promote_to_container(sandbox_id)
 
             # All should be present

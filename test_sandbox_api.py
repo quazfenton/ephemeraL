@@ -45,8 +45,13 @@ class TestSandboxAPI:
         mock_manager.create_sandbox = mock_create_sandbox
 
         response = client.post("/sandboxes", json={})
-
-        # Note: Actual assertion depends on async handling
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "sandbox_id" in data
+        assert data["sandbox_id"] == "sandbox123"
+        assert "workspace" in data
+        assert data["workspace"] == "/tmp/workspaces/sandbox123"
 
     def test_create_sandbox_with_id(self, client, mock_manager):
         """Test sandbox creation with specified ID."""
@@ -64,6 +69,13 @@ class TestSandboxAPI:
             "/sandboxes",
             json={"sandbox_id": "custom_sandbox_456"}
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "sandbox_id" in data
+        assert data["sandbox_id"] == "custom_sandbox_456"
+        assert "workspace" in data
+        assert data["workspace"] == "/tmp/workspaces/custom_sandbox_456"
 
     def test_exec_command_success(self, client, mock_manager):
         """Test successful command execution."""
@@ -85,6 +97,10 @@ class TestSandboxAPI:
                 "args": ["Hello, World!"]
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data == mock_result
 
     def test_exec_command_sandbox_not_found(self, client, mock_manager):
         """Test command execution on non-existent sandbox."""
@@ -99,6 +115,11 @@ class TestSandboxAPI:
                 "command": "ls"
             }
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_exec_command_with_code(self, client, mock_manager):
         """Test command execution with inline code."""
@@ -122,6 +143,10 @@ class TestSandboxAPI:
                 "requires_native": False
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data == mock_result
 
     def test_write_file_success(self, client, mock_manager):
         """Test successful file write."""
@@ -141,6 +166,11 @@ class TestSandboxAPI:
                 "data": "Test content"
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] is True
 
     def test_write_file_sandbox_not_found(self, client, mock_manager):
         """Test file write on non-existent sandbox."""
@@ -156,6 +186,11 @@ class TestSandboxAPI:
                 "data": "Test content"
             }
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_write_file_invalid_path(self, client, mock_manager):
         """Test file write with invalid path."""
@@ -175,6 +210,11 @@ class TestSandboxAPI:
                 "data": "malicious"
             }
         )
+        
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "Invalid path" in data["detail"]
 
     def test_list_files_success(self, client, mock_manager):
         """Test successful file listing."""
@@ -191,6 +231,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "entries" in data
+        assert len(data["entries"]) == 2
 
     def test_list_files_with_path(self, client, mock_manager):
         """Test file listing with specific path."""
@@ -204,6 +249,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files?path=/workspace/subdir")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "entries" in data
+        assert data["entries"] == []
 
     def test_list_files_sandbox_not_found(self, client, mock_manager):
         """Test file listing on non-existent sandbox."""
@@ -213,6 +263,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/nonexistent/files")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_read_file_success(self, client, mock_manager):
         """Test successful file read."""
@@ -226,6 +281,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files/test.txt")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        assert data["content"] == "File content"
 
     def test_read_file_not_found(self, client, mock_manager):
         """Test reading non-existent file."""
@@ -239,6 +299,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files/nonexistent.txt")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "File not found"
 
     def test_read_file_sandbox_not_found(self, client, mock_manager):
         """Test file read on non-existent sandbox."""
@@ -248,6 +313,11 @@ class TestSandboxAPI:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/nonexistent/files/test.txt")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_register_preview_success(self, client, mock_manager, mock_preview):
         """Test successful preview registration."""
@@ -270,6 +340,11 @@ class TestSandboxAPI:
             "/sandboxes/sandbox123/preview",
             json={"port": 8080}
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        assert data["url"] == "http://preview.example.com/sandbox123/8080"
 
     def test_register_preview_sandbox_not_found(self, client, mock_manager):
         """Test preview registration on non-existent sandbox."""
@@ -282,6 +357,11 @@ class TestSandboxAPI:
             "/sandboxes/nonexistent/preview",
             json={"port": 8080}
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_keep_alive_success(self, client, mock_manager):
         """Test successful keepalive."""
@@ -291,6 +371,11 @@ class TestSandboxAPI:
         mock_manager.keep_alive = mock_keep_alive
 
         response = client.post("/sandboxes/sandbox123/keepalive")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "status" in data
+        assert data["status"] == "ok"
 
     def test_keep_alive_sandbox_not_found(self, client, mock_manager):
         """Test keepalive on non-existent sandbox."""
@@ -300,6 +385,11 @@ class TestSandboxAPI:
         mock_manager.keep_alive = mock_keep_alive
 
         response = client.post("/sandboxes/nonexistent/keepalive")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_mount_path_success(self, client, mock_manager):
         """Test successful path mounting."""
@@ -317,6 +407,11 @@ class TestSandboxAPI:
                 "target": "/tmp/shared"
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] is True
 
     def test_mount_path_sandbox_not_found(self, client, mock_manager):
         """Test mount on non-existent sandbox."""
@@ -334,6 +429,11 @@ class TestSandboxAPI:
                 "target": "/tmp/shared"
             }
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_mount_path_target_not_found(self, client, mock_manager):
         """Test mount with non-existent target."""
@@ -351,6 +451,11 @@ class TestSandboxAPI:
                 "target": "/nonexistent/path"
             }
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Mount target missing"
 
     def test_start_background_job_success(self, client, mock_backgrounds):
         """Test successful background job start."""
@@ -370,6 +475,11 @@ class TestSandboxAPI:
                 "interval": 5
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "job_id" in data
+        assert data["job_id"] == "job123"
 
     def test_start_background_job_sandbox_not_found(self, client, mock_backgrounds):
         """Test background job start on non-existent sandbox."""
@@ -385,6 +495,11 @@ class TestSandboxAPI:
                 "interval": 5
             }
         )
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Sandbox not found"
 
     def test_stop_background_job_success(self, client, mock_backgrounds):
         """Test successful background job stop."""
@@ -394,6 +509,11 @@ class TestSandboxAPI:
         mock_backgrounds.stop_job = mock_stop_job
 
         response = client.delete("/sandboxes/sandbox123/background/job123")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "stopped" in data
+        assert data["stopped"] is True
 
     def test_stop_background_job_not_found(self, client, mock_backgrounds):
         """Test stopping non-existent background job."""
@@ -403,6 +523,11 @@ class TestSandboxAPI:
         mock_backgrounds.stop_job = mock_stop_job
 
         response = client.delete("/sandboxes/sandbox123/background/nonexistent")
+        
+        assert response.status_code == 404
+        data = response.json()
+        assert "detail" in data
+        assert data["detail"] == "Job not found"
 
 
 class TestRequestModels:
@@ -515,6 +640,10 @@ class TestEdgeCases:
                 "args": []
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data == mock_result
 
     def test_write_file_with_unicode_content(self, client, mock_manager):
         """Test file write with Unicode content."""
@@ -534,6 +663,11 @@ class TestEdgeCases:
                 "data": "Hello 世界 🌍"
             }
         )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "success" in data
+        assert data["success"] is True
 
     def test_list_files_root_path(self, client, mock_manager):
         """Test file listing at root."""
@@ -547,6 +681,11 @@ class TestEdgeCases:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files?path=")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "entries" in data
+        assert data["entries"] == []
 
     def test_read_file_with_binary_content(self, client, mock_manager):
         """Test reading file with binary content."""
@@ -561,6 +700,12 @@ class TestEdgeCases:
         mock_manager.get_sandbox = mock_get_sandbox
 
         response = client.get("/sandboxes/sandbox123/files/binary.dat")
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "content" in data
+        # The binary content should be decoded with errors ignored
+        assert data["content"] == ""  # \x80\x81\x82 decoded with errors='ignore'
 
     def test_register_preview_high_port(self, client, mock_manager, mock_preview):
         """Test preview registration with high port number."""
@@ -584,6 +729,11 @@ class TestEdgeCases:
                 "/sandboxes/sandbox123/preview",
                 json={"port": 65535}
             )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "url" in data
+        assert data["url"] == "http://preview.example.com/sandbox123/65535"
 
     def test_background_job_with_zero_interval(self, client):
         """Test background job with zero interval."""
@@ -603,3 +753,11 @@ class TestEdgeCases:
                     "interval": 0
                 }
             )
+        
+            # Verify behavior - either success or validation error
+            # Adjust based on expected API behavior
+            assert response.status_code in (200, 422)  # 422 if validation rejects zero
+            if response.status_code == 200:
+                data = response.json()
+                assert "job_id" in data
+                assert data["job_id"] == "job_zero_interval"
