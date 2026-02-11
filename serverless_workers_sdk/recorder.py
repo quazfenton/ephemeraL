@@ -42,7 +42,7 @@ class EventRecorder:
         }
         line = json.dumps(payload)
         # Offload the file write to a thread to avoid blocking the event loop
-        await asyncio.get_event_loop().run_in_executor(None, self._write_log_line, line)
+        await asyncio.to_thread(self._write_log_line, line)
     
     def _write_log_line(self, line: str) -> None:
         """Write a log line to the file in a separate thread."""

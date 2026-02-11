@@ -7,13 +7,30 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Path as FastAPIPath
+from fastapi import FastAPI, HTTPException, Path as FastAPIPath, Depends, Header
 from pydantic import BaseModel
 
 from serverless_workers_sdk.background import BackgroundExecutor
 from serverless_workers_sdk.preview import PreviewRegistrar
 from serverless_workers_sdk.runtime import SandboxManager
 from serverless_workers_sdk.virtual_fs import VirtualFS
+
+from auth import get_user_id, validate_user_id
+
+def get_current_user(authorization: str = Header(...)):
+    """
+    Extract and validate user from Authorization header
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
+
+    token = authorization[7:]  # Remove "Bearer " prefix
+    try:
+        user_id = get_user_id(token)
+        return user_id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
 
 app = FastAPI(title="Sandbox Control API", version="1.0")
 manager = SandboxManager()
@@ -54,13 +71,14 @@ class BackgroundRequest(BaseModel):
 
 
 @app.post("/sandboxes")
-async def create_sandbox(payload: SandboxCreateRequest):
+async def create_sandbox(payload: SandboxCreateRequest, current_user: str = Depends(get_current_user)):
     """
     Create a new sandbox workspace.
-    
+
     Parameters:
         payload (SandboxCreateRequest): Request payload; may include an optional `sandbox_id` to use for the new sandbox.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: A mapping with keys `sandbox_id` (the created sandbox's identifier) and `workspace` (the workspace path as a string).
     """
@@ -69,17 +87,18 @@ async def create_sandbox(payload: SandboxCreateRequest):
 
 
 @app.post("/sandboxes/{sandbox_id}/exec")
-async def exec_command(sandbox_id: str, payload: ExecRequest):
+async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str = Depends(get_current_user)):
     """
     Execute a command inside the specified sandbox.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the target sandbox.
         payload (ExecRequest): Execution request containing the command, optional arguments, optional inline code, optional timeout, and optional native requirement.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: Execution result describing the command outcome (for example, output, error output, exit status, and any execution metadata).
-    
+
     Raises:
         HTTPException: If the specified sandbox does not exist (404).
     """
@@ -98,17 +117,18 @@ async def exec_command(sandbox_id: str, payload: ExecRequest):
 
 
 @app.post("/sandboxes/{sandbox_id}/files")
-async def write_file(sandbox_id: str, payload: FileWriteRequest):
+async def write_file(sandbox_id: str, payload: FileWriteRequest, current_user: str = Depends(get_current_user)):
     """
     Write a UTF-8 string into a file inside the specified sandbox.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the target sandbox.
         payload (FileWriteRequest): Request payload containing `path` (destination path within the sandbox) and `data` (string content to write).
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: {"success": True} on successful write.
-    
+
     Raises:
         HTTPException: 404 if the sandbox does not exist.
         HTTPException: 400 if the provided path or data are invalid.
@@ -124,14 +144,15 @@ async def write_file(sandbox_id: str, payload: FileWriteRequest):
 
 
 @app.get("/sandboxes/{sandbox_id}/files")
-async def list_files(sandbox_id: str, path: Optional[str] = ""):
+async def list_files(sandbox_id: str, path: Optional[str] = "", current_user: str = Depends(get_current_user)):
     """
     List entries in a sandbox directory.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the sandbox to inspect.
         path (str): Path inside the sandbox to list; empty string refers to the sandbox root.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: A mapping with key `"entries"` containing the directory entries returned by the sandbox filesystem.
     """
@@ -143,17 +164,18 @@ async def list_files(sandbox_id: str, path: Optional[str] = ""):
 
 
 @app.get("/sandboxes/{sandbox_id}/files/{file_path:path}")
-async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...)):
+async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...), current_user: str = Depends(get_current_user)):
     """
     Read a file's contents from a sandbox's virtual filesystem.
-    
+
     Parameters:
         sandbox_id (str): ID of the sandbox to read from.
         file_path (str): Path of the file inside the sandbox.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: Dictionary with key "content" containing the file content decoded to a string (decoding errors ignored).
-    
+
     Raises:
         HTTPException: 404 with detail "Sandbox not found" if the sandbox does not exist, or 404 with detail "File not found" if the file does not exist.
     """
@@ -168,19 +190,20 @@ async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...)):
 
 
 @app.post("/sandboxes/{sandbox_id}/preview")
-async def register_preview(sandbox_id: str, payload: PreviewRequest):
+async def register_preview(sandbox_id: str, payload: PreviewRequest, current_user: str = Depends(get_current_user)):
     """
     Register a network preview for the specified sandbox and return its public URL.
-    
+
     Registers a preview backend listening on the provided port and records the resulting public URL with the sandbox manager.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the sandbox to attach the preview to.
         payload (PreviewRequest): Request containing the `port` to expose for the preview.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: Dictionary with key `"url"` containing the public preview URL.
-    
+
     Raises:
         HTTPException: Raises a 404 error if the sandbox is not found.
     """
@@ -195,13 +218,13 @@ async def register_preview(sandbox_id: str, payload: PreviewRequest):
 
 
 @app.post("/sandboxes/{sandbox_id}/keepalive")
-async def keep_alive(sandbox_id: str):
+async def keep_alive(sandbox_id: str, current_user: str = Depends(get_current_user)):
     """
     Mark the sandbox identified by `sandbox_id` as active to prevent expiration.
-    
+
     Returns:
         dict: `{"status": "ok"}` when the sandbox was successfully marked active.
-    
+
     Raises:
         HTTPException: with status code 404 if the sandbox does not exist.
     """
@@ -213,7 +236,7 @@ async def keep_alive(sandbox_id: str):
 
 
 @app.post("/sandboxes/{sandbox_id}/mount")
-async def mount_path(sandbox_id: str, payload: MountRequest):
+async def mount_path(sandbox_id: str, payload: MountRequest, current_user: str = Depends(get_current_user)):
     """
     Mounts a host filesystem path into the specified sandbox under the provided alias.
 
@@ -222,6 +245,7 @@ async def mount_path(sandbox_id: str, payload: MountRequest):
         payload (MountRequest): Mount specification; `alias` is the mount name inside the sandbox,
                                `target` is the host path to mount. Only paths under the configured
                                safe base directory are allowed.
+        current_user (str): Authenticated user ID extracted from the JWT token.
 
     Returns:
         result (dict): Dictionary with key `success` set to `True` on successful mount.
@@ -250,17 +274,18 @@ async def mount_path(sandbox_id: str, payload: MountRequest):
 
 
 @app.post("/sandboxes/{sandbox_id}/background")
-async def start_background(sandbox_id: str, payload: BackgroundRequest):
+async def start_background(sandbox_id: str, payload: BackgroundRequest, current_user: str = Depends(get_current_user)):
     """
     Start a repeating background job in the specified sandbox.
-    
+
     Parameters:
         sandbox_id (str): ID of the sandbox to run the job in.
         payload (BackgroundRequest): Job configuration including `command`, optional `args`, and `interval`.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: {"job_id": "<job id>"} containing the identifier of the started background job.
-    
+
     Raises:
         HTTPException: with status code 404 if the sandbox is not found.
     """
@@ -277,17 +302,18 @@ async def start_background(sandbox_id: str, payload: BackgroundRequest):
 
 
 @app.delete("/sandboxes/{sandbox_id}/background/{job_id}")
-async def stop_background(sandbox_id: str, job_id: str):
+async def stop_background(sandbox_id: str, job_id: str, current_user: str = Depends(get_current_user)):
     """
     Stop a running background job for the given sandbox.
-    
+
     Parameters:
         sandbox_id (str): Identifier of the sandbox that owns the background job.
         job_id (str): Identifier of the background job to stop.
-    
+        current_user (str): Authenticated user ID extracted from the JWT token.
+
     Returns:
         dict: `{"stopped": True}` when the job was successfully stopped.
-    
+
     Raises:
         HTTPException: 404 if the specified job was not found.
     """

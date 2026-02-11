@@ -167,48 +167,61 @@ class SandboxManager:
 
         args = args or []
         cmd = [command, *args]
-        if command == "python" and code:
-            script_path = sandbox.workspace / "sandbox_exec.py"
-            script_path.write_text(code)
-            cmd = ["python", str(script_path)]
-        elif code:
-            ext_map = {"node": "js", "python": "py"}
-            ext = ext_map.get(command, command)
-            script_path = sandbox.workspace / f"sandbox_exec.{ext}"
-            script_path.write_text(code)
-            cmd = [command, str(script_path)]
-
-        _SAFE_ENV_KEYS = {"PATH", "HOME", "LANG", "LC_ALL"}
-        env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
-        env["PYTHONUNBUFFERED"] = "1"
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=str(sandbox.workspace),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=env,
-        )
+        script_path = None  # Initialize to None to handle cleanup properly
+        
         try:
-            timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            stdout, stderr = b"", b""
-            return {
+            if command == "python" and code:
+                # Generate a unique temporary script name to avoid race conditions
+                unique_id = uuid.uuid4().hex[:8]  # Short unique ID
+                script_path = sandbox.workspace / f"sandbox_exec_{unique_id}.py"
+                script_path.write_text(code)
+                cmd = ["python", str(script_path)]
+            elif code:
+                # Generate a unique temporary script name to avoid race conditions
+                unique_id = uuid.uuid4().hex[:8]  # Short unique ID
+                script_path = sandbox.workspace / f"sandbox_exec_{unique_id}.{command}"
+                script_path.write_text(code)
+                cmd = [command, str(script_path)]
+
+            _SAFE_ENV_KEYS = {"PATH", "HOME", "LANG", "LC_ALL"}
+            env = {k: v for k, v in os.environ.items() if k in _SAFE_ENV_KEYS}
+            env["PYTHONUNBUFFERED"] = "1"
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                cwd=str(sandbox.workspace),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=env,
+            )
+            try:
+                timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                stdout, stderr = b"", b""
+                return {
+                    "stdout": stdout.decode(errors="ignore"),
+                    "stderr": "Execution timed out",
+                    "exit_code": proc.returncode,
+                }
+
+            result = {
                 "stdout": stdout.decode(errors="ignore"),
-                "stderr": "Execution timed out",
+                "stderr": stderr.decode(errors="ignore"),
                 "exit_code": proc.returncode,
             }
-
-        result = {
-            "stdout": stdout.decode(errors="ignore"),
-            "stderr": stderr.decode(errors="ignore"),
-            "exit_code": proc.returncode,
-        }
-        await self._recorder.record("sandbox.exec.success", sandbox_id, {"cmd": cmd})
-        self._quota.record_execution(sandbox_id)
-        return result
+            await self._recorder.record("sandbox.exec.success", sandbox_id, {"cmd": cmd})
+            self._quota.record_execution(sandbox_id)
+            return result
+        finally:
+            # Clean up the temporary script file if it was created
+            if script_path and script_path.exists():
+                try:
+                    script_path.unlink()  # Remove the temporary file
+                except OSError:
+                    # If we can't delete the file, just continue - don't let cleanup errors affect the result
+                    pass
 
     async def keep_alive(self, sandbox_id: str) -> None:
         """

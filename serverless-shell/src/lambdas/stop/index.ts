@@ -24,11 +24,11 @@ interface StopResponse {
  * Validates the session belongs to the requesting user
  */
 const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolean => {
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const match = authHeader ? /^Bearer\s+(.+)$/i.exec(authHeader) : null;
+  if (!match) {
     return false;
   }
-
-  const token = authHeader.substring(7);
+  const token = match[1];
 
   try {
     // In a real implementation, you would verify the JWT against your identity provider's public key
@@ -52,12 +52,16 @@ const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolea
 };
 
 export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => {
+  // Normalize headers and get auth header
+  const headers = event.headers ?? {};
+  const authHeader = headers.Authorization ?? headers.authorization;
+
   // Sanitize headers to avoid logging sensitive information
-  const sanitizedHeaders = Object.keys(event.headers).reduce((acc, key) => {
+  const sanitizedHeaders = Object.keys(headers).reduce((acc, key) => {
     if (key.toLowerCase() === 'authorization') {
       acc[key] = '[REDACTED]';
     } else {
-      acc[key] = event.headers[key];
+      acc[key] = headers[key];
     }
     return acc;
   }, {} as Record<string, string | undefined>);
@@ -77,8 +81,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: 'Internal server error: Missing configuration' 
+        body: JSON.stringify({
+          error: 'Internal server error: Missing configuration'
         })
       };
     }
@@ -95,8 +99,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: "Invalid JSON in request body" 
+        body: JSON.stringify({
+          error: "Invalid JSON in request body"
         })
       };
     }
@@ -111,8 +115,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: "Missing sessionId" 
+        body: JSON.stringify({
+          error: "Missing sessionId"
         })
       };
     }
@@ -126,8 +130,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: "Invalid sessionId format" 
+        body: JSON.stringify({
+          error: "Invalid sessionId format"
         })
       };
     }
@@ -146,14 +150,14 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: "Session not found" 
+        body: JSON.stringify({
+          error: "Session not found"
         })
       };
     }
 
     // Validate session ownership
-    if (!validateSessionOwnership(sessionResult.Item, event.headers.Authorization)) {
+    if (!validateSessionOwnership(sessionResult.Item, authHeader)) {
       console.warn(`Unauthorized access attempt to session: ${sessionId}`);
       return {
         statusCode: 403,
@@ -161,8 +165,8 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*'
         },
-        body: JSON.stringify({ 
-          error: "Unauthorized access to session" 
+        body: JSON.stringify({
+          error: "Unauthorized access to session"
         })
       };
     }

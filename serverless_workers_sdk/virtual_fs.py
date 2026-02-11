@@ -18,18 +18,36 @@ class VirtualFS:
     def _resolve(self, path: str) -> Path:
         """
         Resolve a virtual filesystem path against the instance root, normalizing a leading slash and preventing directory traversal.
-        
+        If the first component of the path matches a registered mount alias, resolve to the mounted target.
+
         Parameters:
             path (str): Path within the virtual filesystem; may begin with a leading '/'.
-        
+
         Returns:
-            Path: The resolved Path object under the instance root corresponding to the given virtual path.
-        
+            Path: The resolved Path object under the instance root corresponding to the given virtual path,
+                  or the mounted target if the first component matches a registered alias.
+
         Raises:
             ValueError: If the provided path contains '..', indicating attempted directory traversal.
         """
         if path.startswith("/"):
             path = path[1:]
+        
+        # Check if the first component is a registered mount alias
+        if "/" in path:
+            first_component = path.split("/")[0]
+        else:
+            first_component = path
+        
+        if first_component in self.mounts:
+            # If it's a mount alias, resolve to the mounted target
+            target_path = str(self.mounts[first_component])
+            remaining_path = "/".join(path.split("/")[1:]) if len(path.split("/")) > 1 else ""
+            if remaining_path:
+                return Path(target_path) / remaining_path
+            else:
+                return Path(target_path)
+        
         if ".." in path:
             raise ValueError("directory traversal prevented")
         return self.root / path
