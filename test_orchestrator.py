@@ -525,7 +525,7 @@ class TestEdgeCases:
             # Should still try to stop even if already stopped
             assert sandbox_id not in orchestrator._processes
 
-    @pytest.mark.asyncio
+    `@pytest.mark.asyncio`
     async def test_cleanup_multiple_stale_processes(self, orchestrator):
         """Test cleanup with multiple stale processes."""
         sandbox_ids = ["sandbox1", "sandbox2", "sandbox3"]

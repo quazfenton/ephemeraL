@@ -336,8 +336,7 @@ class ContainerFallback:
             with open(snapshot_path, 'rb') as src:
                 with dctx.stream_reader(src) as decompressor:
                     with tarfile.open(fileobj=decompressor, mode='r|') as tar:
-                        # Safe extraction to prevent path traversal
-                        for member in tar.getmembers():
+                        for member in tar:
                             # Check for path traversal attempts
                             if '..' in member.path or member.path.startswith('/'):
                                 print(f"Warning: Skipping file with unsafe path: {member.path}")

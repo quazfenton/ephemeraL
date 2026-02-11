@@ -68,25 +68,21 @@ if [ "$USE_DOCKER" = true ]; then
       -C "${WORKSPACE_DIR}" .
 
     echo "Snapshot created successfully: ${SNAPSHOT_FILE}"
-    echo "Size: $(du -h "${SNAPSHOT_FILE}" | cut -f1)"
-
-    # Restart container (this will be handled by trap too)
-    echo "Restarting container..."
-    docker start "${CONTAINER_NAME}"
-
     echo "Done!"
 else
     # Use fallback Python implementation
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PYTHON_FALLBACK="${SCRIPT_DIR}/container_fallback.py"
-    
+
     if [ ! -f "$PYTHON_FALLBACK" ]; then
         echo "Error: Fallback script not found: $PYTHON_FALLBACK"
         exit 1
     fi
-    
+
     echo "Creating snapshot using fallback method for user: ${USER_ID}"
     echo "Snapshot ID: ${SNAPSHOT_ID}"
-    
-    python3 "$PYTHON_FALLBACK" "snapshot" "$USER_ID" "$SNAPSHOT_ID"
+
+    python3 "$PYTHON_FALLBACK" "snapshot" "$USER_ID" "$SNAPSHOT_ID" \
+        --snapshot-dir "/srv/snapshots" \
+        --workspace-dir "/srv/workspaces"
 fi

@@ -7,7 +7,7 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
     volumes:
       - snapshots:/app/snapshots
     restart: unless-stopped

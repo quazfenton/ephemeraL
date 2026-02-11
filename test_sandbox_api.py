@@ -53,8 +53,8 @@ class TestSandboxAPI:
         assert "workspace" in data
         assert data["workspace"] == "/tmp/workspaces/sandbox123"
 
-    def test_create_sandbox_with_id(self, client, mock_manager):
-        """Test sandbox creation with specified ID."""
+        def test_create_sandbox_with_id(self, client, mock_manager):
+            """Test sandbox creation with specified ID."""
         mock_sandbox = mock.Mock()
         mock_sandbox.sandbox_id = "custom_sandbox_456"
         mock_sandbox.workspace = "/tmp/workspaces/custom_sandbox_456"

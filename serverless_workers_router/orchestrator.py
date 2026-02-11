@@ -11,10 +11,9 @@ from typing import Dict, Optional, TextIO
 
 from container_fallback import ContainerFallback
 
-
 from dataclasses import dataclass, field
 
-`@dataclass`
+@dataclass
 class FallbackProcess:
     sandbox_id: str
     port: int
@@ -80,19 +79,28 @@ class FallbackOrchestrator:
     async def promote_to_container(self, sandbox_id: str) -> str:
         """
         Ensure a container-backed HTTP server is running for the given sandbox and return its public URL.
-        
+
         If an active fallback process already exists for the sandbox, its URL is returned. Otherwise this method creates and starts the container workspace (if needed), allocates a port, launches a local Python HTTP server subprocess bound to 127.0.0.1, and records stdout/stderr logs for the fallback process.
-        
+
         Parameters:
             sandbox_id (str): Identifier of the sandbox to promote.
-        
+
         Returns:
             url (str): HTTP URL (e.g., "http://127.0.0.1:<port>") where the promoted sandbox is served.
         """
         async with self._lock:
             existing = self._processes.get(sandbox_id)
-            if existing and existing.process.poll() is None:
-                return f"http://127.0.0.1:{existing.port}"
+            if existing:
+                if existing.process.poll() is None:
+                    return f"http://127.0.0.1:{existing.port}"
+                else:
+                    # Clean up exited process before starting a new one
+                    if existing.stdout:
+                        existing.stdout.close()
+                    if existing.stderr:
+                        existing.stderr.close()
+                    self.container.cleanup_container(sandbox_id)
+                    del self._processes[sandbox_id]
 
             # Ensure workspace exists and is marked as running
             self.container.create_container(sandbox_id)

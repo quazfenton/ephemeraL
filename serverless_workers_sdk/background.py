@@ -44,7 +44,7 @@ class BackgroundExecutor:
             command (str): Command to execute on each iteration.
             args (list[str], optional): Arguments to pass to the command. Defaults to an empty list.
             interval (int): Number of seconds to wait between command executions.
-        
+
         Returns:
             BackgroundJob: A BackgroundJob instance representing the scheduled job (includes its generated job_id and the asyncio Task).
         """
@@ -54,17 +54,24 @@ class BackgroundExecutor:
         async def loop() -> None:
             """
             Continuously executes the configured command inside the sandbox at the given interval.
-            
+
             Each iteration calls the manager's exec_command with a 10-second timeout using the captured
             sandbox_id, command, and args, then awaits asyncio.sleep(interval). The loop runs indefinitely
             until the surrounding task is cancelled.
             """
-            while True:
-                await self.manager.exec_command(
-                    sandbox_id=sandbox_id,
-                    command=command,
-                    args=args,
-                    timeout=10,
+            try:
+                while True:
+                    await self.manager.exec_command(
+                        sandbox_id=sandbox_id,
+                        command=command,
+                        args=args,
+                        timeout=10,
+                    )
+                    await asyncio.sleep(interval)
+            except Exception:
+                if job_id in self._running:
+                    del self._running[job_id]
+                raise
                 )
                 await asyncio.sleep(interval)
 
