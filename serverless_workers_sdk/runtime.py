@@ -172,7 +172,9 @@ class SandboxManager:
             script_path.write_text(code)
             cmd = ["python", str(script_path)]
         elif code:
-            script_path = sandbox.workspace / f"sandbox_exec.{command}"
+            ext_map = {"node": "js", "python": "py"}
+            ext = ext_map.get(command, command)
+            script_path = sandbox.workspace / f"sandbox_exec.{ext}"
             script_path.write_text(code)
             cmd = [command, str(script_path)]
 

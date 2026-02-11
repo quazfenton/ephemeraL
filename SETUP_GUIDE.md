@@ -336,7 +336,7 @@ chmod +x /home/ubuntu/backup_snapshots.sh
 
 # Add to crontab for daily backups with logging
 crontab -e
-# Add: 0 2 * * * /home/ubuntu/backup_snapshots.sh >> /home/ubuntu/logs/cron-snapshot-backup.log 2>&1
+# Add: 0 2 * * * mkdir -p /home/ubuntu/logs && /home/ubuntu/backup_snapshots.sh >> /home/ubuntu/logs/cron-snapshot-backup.log 2>&1
 ```
 
 ## Troubleshooting

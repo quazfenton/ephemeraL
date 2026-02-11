@@ -59,7 +59,12 @@ class TestPreviewRouter:
         mock_response = mock.Mock()
         mock_response.status_code = 200
         mock_response.headers = {"content-type": "application/json"}
-        mock_response.aiter_raw = mock.AsyncMock(return_value=iter([b'{"result": "success"}']))
+
+        async def async_iter_bytes():
+            for chunk in [b'{"result": "success"}']:
+                yield chunk
+
+        mock_response.aiter_raw = mock.AsyncMock(return_value=async_iter_bytes())
 
         with mock.patch.object(preview_router.client, 'build_request') as mock_build:
             with mock.patch.object(preview_router.client, 'send') as mock_send:

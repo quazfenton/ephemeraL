@@ -24,32 +24,38 @@ class TestSandboxAPI:
     @pytest.fixture
     def mock_preview(self):
         """Mock the PreviewRegistrar."""
-        with mock.patch('sandbox_api.preview') as mock_prev:
-            yield mock_prev
+        @pytest.fixture
+        def mock_preview(self):
+            """Mock the PreviewRegistrar."""
+            with mock.patch('sandbox_api.preview') as mock_prev:
+                yield mock_prev
 
-    @pytest.fixture
-    def mock_backgrounds(self):
-        """Mock the BackgroundExecutor."""
-        with mock.patch('sandbox_api.backgrounds') as mock_bg:
-            yield mock_bg
+        @pytest.fixture
+        def mock_backgrounds(self):
+            """Mock the BackgroundExecutor."""
+            with mock.patch('sandbox_api.backgrounds') as mock_bg:
+                yield mock_bg
 
-    def test_create_sandbox_success(self, client, mock_manager):
-        """Test successful sandbox creation."""
-        mock_sandbox = mock.Mock()
-        mock_sandbox.sandbox_id = "sandbox123"
-        mock_sandbox.workspace = "/tmp/workspaces/sandbox123"
+        def test_create_sandbox_success(self, client, mock_manager):
+            """Test successful sandbox creation."""
+            mock_sandbox = mock.Mock()
+            mock_sandbox.sandbox_id = "sandbox123"
+            mock_sandbox.workspace = "/tmp/workspaces/sandbox123"
 
-        async def mock_create_sandbox(sandbox_id=None):
-            return mock_sandbox
+            async def mock_create_sandbox(sandbox_id=None):
+                return mock_sandbox
 
-        mock_manager.create_sandbox = mock_create_sandbox
+            mock_manager.create_sandbox = mock_create_sandbox
 
-        response = client.post("/sandboxes", json={})
+            response = client.post("/sandboxes", json={})
+            assert response.status_code == 200
+            assert response.json() == {
+                "sandbox_id": "sandbox123",
+                "workspace": "/tmp/workspaces/sandbox123"
+            }
 
-        # Note: Actual assertion depends on async handling
-
-    def test_create_sandbox_with_id(self, client, mock_manager):
-        """Test sandbox creation with specified ID."""
+        def test_create_sandbox_with_id(self, client, mock_manager):
+            """Test sandbox creation with specified ID."""
         mock_sandbox = mock.Mock()
         mock_sandbox.sandbox_id = "custom_sandbox_456"
         mock_sandbox.workspace = "/tmp/workspaces/custom_sandbox_456"

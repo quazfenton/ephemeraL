@@ -219,7 +219,17 @@ async def proxy_preview(sandbox_id: str, port: int, path: str, request: Request)
     return await router.route(sandbox_id, port, path, request)
 
 
-@app.on_event("shutdown")
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for the preview router.
+    
+    Performs application startup and shutdown tasks for the preview router.
+    """
+    yield
+    # Shutdown
+    await router.shutdown()
+
+
 async def shutdown_event() -> None:
     """
     Perform application shutdown tasks for the preview router.

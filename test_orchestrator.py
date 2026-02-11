@@ -525,7 +525,7 @@ class TestEdgeCases:
             # Should still try to stop even if already stopped
             assert sandbox_id not in orchestrator._processes
 
-    @pytest.mark.asyncio
+    `@pytest.mark.asyncio`
     async def test_cleanup_multiple_stale_processes(self, orchestrator):
         """Test cleanup with multiple stale processes."""
         sandbox_ids = ["sandbox1", "sandbox2", "sandbox3"]
@@ -534,9 +534,8 @@ class TestEdgeCases:
             # Create processes that will be dead on cleanup
             for sandbox_id in sandbox_ids:
                 mock_process = mock.Mock()
-                # Create a new list for each process
-                poll_results = [None, 0]  # First check: alive, second check: dead
-                mock_process.poll = mock.Mock(side_effect=poll_results)
+                # First poll() call will be during cleanup_stale (promote doesn't call poll for new IDs)
+                mock_process.poll = mock.Mock(return_value=0)  # Dead on cleanup check
                 mock_popen.return_value = mock_process
                 await orchestrator.promote_to_container(sandbox_id)
 

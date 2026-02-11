@@ -48,7 +48,7 @@ if [ "$USE_DOCKER" = true ]; then
     
     # Ensure parent directories exist with proper permissions
     mkdir -p "/srv/workspaces" "/srv/snapshots"
-    chmod 755 "/srv/workspaces" "/srv/snapshots"
+    chmod 700 "/srv/workspaces" "/srv/snapshots"
     
     case "$ACTION" in
         create)

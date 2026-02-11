@@ -2,14 +2,12 @@ version: '3.8'
 
 services:
   docker-client:
-    image: docker:latest
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    image: docker:cli
     environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
     command: >
       sh -c "
-        echo 'Docker client ready to use mounted socket' &&
+        echo 'Docker client ready to use socket proxy' &&
         docker version &&
         sleep infinity
       "

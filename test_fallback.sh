@@ -10,7 +10,7 @@ OLD_PATH=$PATH
 
 # Create a fake docker command that always fails
 echo '#!/bin/bash' > $TEST_DIR/docker
-echo 'echo "Docker not available"' >&2
+echo 'echo "Docker not available" >&2' >> $TEST_DIR/docker
 echo 'exit 1' >> $TEST_DIR/docker
 chmod +x $TEST_DIR/docker
 
