@@ -26,7 +26,7 @@ describe('Stop Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174000' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -45,7 +45,7 @@ describe('Stop Lambda Function', () => {
         Authorization: 'Bearer test-token'
       },
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174000'  // Valid UUID format
+        sessionId: 'test-session-id'
       })
     };
 
@@ -54,14 +54,14 @@ describe('Stop Lambda Function', () => {
     expect(result.statusCode).toBe(200);
     const responseBody = JSON.parse(result.body);
     expect(responseBody.status).toBe('terminated');
-    expect(responseBody.sessionId).toBe('123e4567-e89b-12d3-a456-426614174000');
+    expect(responseBody.sessionId).toBe('test-session-id');
   });
 
   test('should handle case where task is already stopped', async () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174001' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -77,7 +77,7 @@ describe('Stop Lambda Function', () => {
         Authorization: 'Bearer test-token'
       },
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174001'  // Valid UUID format
+        sessionId: 'test-session-id'
       })
     };
 
@@ -109,7 +109,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174004'  // Valid UUID format
+        sessionId: 'non-existent-session-id'
       })
     };
 
@@ -124,7 +124,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: 'invalid-session-id'  // This should remain as an invalid format for this test
+        sessionId: 'invalid-session-id'
       })
     };
 
@@ -139,7 +139,7 @@ describe('Stop Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174002' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -154,7 +154,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174002'  // Valid UUID format
+        sessionId: 'test-session-id'
       })
     };
 
@@ -170,7 +170,7 @@ describe('Stop Lambda Function', () => {
     // Mock DynamoDB get item response
     ddbMock.on(GetItemCommand).resolves({
       Item: {
-        sessionId: { S: '123e4567-e89b-12d3-a456-426614174003' },
+        sessionId: { S: 'test-session-id' },
         taskArn: { S: 'arn:aws:ecs:region:account:task/task-id' },
         user: { S: 'test-user' }
       }
@@ -187,7 +187,7 @@ describe('Stop Lambda Function', () => {
     const event = {
       headers: {},
       body: JSON.stringify({
-        sessionId: '123e4567-e89b-12d3-a456-426614174003'  // Valid UUID format
+        sessionId: 'test-session-id'
       })
     };
 

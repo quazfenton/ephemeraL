@@ -78,33 +78,17 @@ class SnapshotResponse(BaseModel):
 
 
 def generate_snapshot_id() -> str:
-    """
-    Create a timestamp-based snapshot identifier.
-    
-    The identifier uses the current local time and follows the format `snap_YYYY_MM_DD_HHMMSS`.
-    
-    Returns:
-        snapshot_id (str): Snapshot identifier in the format `snap_YYYY_MM_DD_HHMMSS`.
-    """
+    """Generate a unique snapshot ID based on timestamp"""
     return f"snap_{datetime.now().strftime('%Y_%m_%d_%H%M%S')}"
 
 
-from fastapi import Body
-
 @app.post("/snapshot/create", response_model=SnapshotResponse)
-async def create_snapshot(current_user: str = Depends(get_current_user)):
+async def create_snapshot(request: SnapshotCreateRequest, current_user: str = Depends(get_current_user)):
     """
-    Create a snapshot of the requesting user's workspace.
-    
-    Parameters:
-        request (dict, optional): Optional request body provided to the endpoint (not required for snapshot creation).
-    
-    Returns:
-        SnapshotResponse: Operation result containing:
-            - `success` (bool): `true` if snapshot creation succeeded, `false` otherwise.
-            - `message` (str): Human-readable status message.
-            - `snapshot_id` (str | None): Identifier of the created snapshot when successful.
-            - `size` (str | None): Human-readable size of the created snapshot (e.g., "10M").
+    Create a snapshot of user workspace
+
+    POST /snapshot/create
+    Headers: Authorization: Bearer <jwt_token>
     """
     try:
         snapshot_id = generate_snapshot_id()
@@ -113,13 +97,12 @@ async def create_snapshot(current_user: str = Depends(get_current_user)):
         if not validate_user_id(current_user):
             raise HTTPException(status_code=400, detail="Invalid user ID format")
 
-        # Execute snapshot creation script with timeout
+        # Execute snapshot creation script
         result = subprocess.run(
             [str(CREATE_SNAPSHOT_SCRIPT), current_user, snapshot_id],
             capture_output=True,
             text=True,
-            check=True,
-            timeout=60  # 60-second timeout
+            check=True
         )
 
         # Get snapshot size
@@ -131,8 +114,7 @@ async def create_snapshot(current_user: str = Depends(get_current_user)):
 
         size = subprocess.check_output(
             ["du", "-h", snapshot_path],
-            text=True,
-            timeout=30  # 30-second timeout for size calculation
+            text=True
         ).split()[0]
 
         return SnapshotResponse(
@@ -140,11 +122,6 @@ async def create_snapshot(current_user: str = Depends(get_current_user)):
             message="Snapshot created successfully",
             snapshot_id=snapshot_id,
             size=size
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=504,
-            detail="Snapshot creation timed out"
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(
@@ -178,24 +155,18 @@ async def restore_snapshot(request: SnapshotRestoreRequest, current_user: str = 
         if not validate_input(request.snapshot_id):
             raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
 
-        # Execute snapshot restoration script with timeout
+        # Execute snapshot restoration script
         result = subprocess.run(
             [str(RESTORE_SNAPSHOT_SCRIPT), current_user, request.snapshot_id],
             capture_output=True,
             text=True,
-            check=True,
-            timeout=60  # 60-second timeout
+            check=True
         )
 
         return SnapshotResponse(
             success=True,
             message="Snapshot restored successfully",
             snapshot_id=request.snapshot_id
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=504,
-            detail="Snapshot restoration timed out"
         )
     except subprocess.CalledProcessError as e:
         raise HTTPException(
@@ -240,7 +211,7 @@ async def list_snapshots(current_user: str = Depends(get_current_user)):
                     continue  # Skip files that would result from path traversal attempts
                 stat = os.stat(filepath)
                 snapshots.append({
-                    "snapshot_id": filename.removesuffix(".tar.zst"),
+                    "snapshot_id": filename.replace(".tar.zst", ""),
                     "size": stat.st_size,
                     "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat()
                 })
