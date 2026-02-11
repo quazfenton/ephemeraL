@@ -3,6 +3,7 @@ Identity and Authentication Module
 Handles JWT-based authentication and user identity management
 """
 
+import os
 import re
 import warnings
 from jose import jwt, ExpiredSignatureError, JWTError
@@ -38,7 +39,17 @@ def get_user_id(token: str) -> str:
         Stable user ID (sub claim from JWT)
     """
     try:
-        payload = jwt.decode(token, PUBLIC_KEY, algorithms=["RS256"])
+        decode_kwargs = {"algorithms": ["RS256"]}
+        audience = os.getenv("JWT_AUDIENCE")
+        issuer = os.getenv("JWT_ISSUER")
+        if audience:
+            decode_kwargs["audience"] = audience
+        else:
+            import warnings
+            warnings.warn("JWT_AUDIENCE not set — audience validation disabled", RuntimeWarning, stacklevel=2)
+        if issuer:
+            decode_kwargs["issuer"] = issuer
+        payload = jwt.decode(token, PUBLIC_KEY, **decode_kwargs)
     except ExpiredSignatureError:
         raise ValueError("Token has expired")
     except JWTError as e:
