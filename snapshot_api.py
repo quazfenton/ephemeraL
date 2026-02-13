@@ -1,72 +1,38 @@
 """
 Snapshot API Module
-Provides REST API endpoints for snapshot creation and restoration
+Provides REST API endpoints for snapshot creation, restoration, and management.
 """
 
 import re
-from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional
-import subprocess
-import os
 from datetime import datetime
 from auth import get_user_id, validate_user_id
+from snapshot_manager import SnapshotManager
+from serverless_workers_sdk.metrics import (
+    snapshot_created_total,
+    snapshot_restored_total,
+    snapshot_size_bytes,
+)
 
-# Define absolute paths for scripts
-SCRIPT_DIR = Path(__file__).parent.resolve()
-CREATE_SNAPSHOT_SCRIPT = SCRIPT_DIR / "create_snapshot.sh"
-RESTORE_SNAPSHOT_SCRIPT = SCRIPT_DIR / "restore_snapshot.sh"
+snap_mgr = SnapshotManager()
 
-# Validate that scripts exist
-if not CREATE_SNAPSHOT_SCRIPT.exists():
-    raise RuntimeError(f"Snapshot creation script not found: {CREATE_SNAPSHOT_SCRIPT}")
-
-if not RESTORE_SNAPSHOT_SCRIPT.exists():
-    raise RuntimeError(f"Snapshot restore script not found: {RESTORE_SNAPSHOT_SCRIPT}")
-
-
-app = FastAPI(title="Snapshot API")
+app = FastAPI(
+    title="Snapshot API",
+    description="Manage workspace snapshots for ephemeral environments",
+    version="2.0.0",
+)
 
 
 class SnapshotCreateRequest(BaseModel):
     """Request model for creating a snapshot"""
-    # user_id is now derived from JWT token, not from request body
     pass
 
 
 class SnapshotRestoreRequest(BaseModel):
     """Request model for restoring a snapshot"""
-    snapshot_id: str  # user_id is now derived from JWT token
-
-
-def get_current_user(authorization: str = Header(...)):
-    """
-    Extract and validate user from Authorization header
-    """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
-
-    token = authorization[7:]  # Remove "Bearer " prefix
-    try:
-        user_id = get_user_id(token)
-        return user_id
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-
-def validate_input(input_str: str) -> bool:
-    """
-    Validate input strings to prevent path traversal and command injection
-
-    Args:
-        input_str: Input string to validate
-
-    Returns:
-        True if valid, False otherwise
-    """
-    # Allow only alphanumeric characters, hyphens, and underscores
-    return bool(re.match(r'^[a-zA-Z0-9_-]+$', input_str))
+    snapshot_id: str
 
 
 class SnapshotResponse(BaseModel):
@@ -77,200 +43,161 @@ class SnapshotResponse(BaseModel):
     size: Optional[str] = None
 
 
-def generate_snapshot_id() -> str:
-    """
-    Create a timestamp-based snapshot identifier.
-    
-    The identifier uses the current local time and follows the format `snap_YYYY_MM_DD_HHMMSS`.
-    
-    Returns:
-        snapshot_id (str): Snapshot identifier in the format `snap_YYYY_MM_DD_HHMMSS`.
-    """
-    return f"snap_{datetime.now().strftime('%Y_%m_%d_%H%M%S')}"
+def _human_size(size_bytes: int) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if abs(size_bytes) < 1024:
+            return f"{size_bytes:.1f}{unit}"
+        size_bytes /= 1024
+    return f"{size_bytes:.1f}PB"
 
 
-from fastapi import Body
+def get_current_user(authorization: str = Header(...)):
+    """
+    Extract and validate user from Authorization header
+    """
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header must start with 'Bearer '")
 
-@app.post("/snapshot/create", response_model=SnapshotResponse)
-async def create_snapshot(current_user: str = Depends(get_current_user)):
-    """
-    Create a snapshot of the requesting user's workspace.
-    
-    Parameters:
-        request (dict, optional): Optional request body provided to the endpoint (not required for snapshot creation).
-    
-    Returns:
-        SnapshotResponse: Operation result containing:
-            - `success` (bool): `true` if snapshot creation succeeded, `false` otherwise.
-            - `message` (str): Human-readable status message.
-            - `snapshot_id` (str | None): Identifier of the created snapshot when successful.
-            - `size` (str | None): Human-readable size of the created snapshot (e.g., "10M").
-    """
+    token = authorization[7:]
     try:
-        snapshot_id = generate_snapshot_id()
-
-        # Validate user_id from token
-        if not validate_user_id(current_user):
-            raise HTTPException(status_code=400, detail="Invalid user ID format")
-
-        # Execute snapshot creation script with timeout
-        result = subprocess.run(
-            [str(CREATE_SNAPSHOT_SCRIPT), current_user, snapshot_id],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60  # 60-second timeout
-        )
-
-        # Get snapshot size
-        snapshot_path = f"/srv/snapshots/{current_user}/{snapshot_id}.tar.zst"
-
-        # Validate the path to prevent directory traversal
-        if "../" in snapshot_path or "..\\" in snapshot_path:
-            raise HTTPException(status_code=500, detail="Invalid path detected")
-
-        size = subprocess.check_output(
-            ["du", "-h", snapshot_path],
-            text=True,
-            timeout=30  # 30-second timeout for size calculation
-        ).split()[0]
-
-        return SnapshotResponse(
-            success=True,
-            message="Snapshot created successfully",
-            snapshot_id=snapshot_id,
-            size=size
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=504,
-            detail="Snapshot creation timed out"
-        )
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Snapshot creation failed: {e.stderr}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
-        )
+        user_id = get_user_id(token)
+        return user_id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-@app.post("/snapshot/restore", response_model=SnapshotResponse)
-async def restore_snapshot(request: SnapshotRestoreRequest, current_user: str = Depends(get_current_user)):
+def validate_input(input_str: str) -> bool:
     """
-    Restore a snapshot to user workspace
-
-    POST /snapshot/restore
-    Headers: Authorization: Bearer <jwt_token>
-    Body: {
-      "snapshot_id": "snap_001"
-    }
+    Validate input strings to prevent path traversal and command injection
     """
-    try:
-        # Validate user_id from token
-        if not validate_user_id(current_user):
-            raise HTTPException(status_code=400, detail="Invalid user ID format")
-
-        # Validate snapshot_id to prevent path traversal and command injection
-        if not validate_input(request.snapshot_id):
-            raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
-
-        # Execute snapshot restoration script with timeout
-        result = subprocess.run(
-            [str(RESTORE_SNAPSHOT_SCRIPT), current_user, request.snapshot_id],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=60  # 60-second timeout
-        )
-
-        return SnapshotResponse(
-            success=True,
-            message="Snapshot restored successfully",
-            snapshot_id=request.snapshot_id
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(
-            status_code=504,
-            detail="Snapshot restoration timed out"
-        )
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Snapshot restoration failed: {e.stderr}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
-        )
+    return bool(re.match(r'^[a-zA-Z0-9_-]+$', input_str))
 
 
-@app.get("/snapshot/list")
-async def list_snapshots(current_user: str = Depends(get_current_user)):
-    """
-    List all snapshots for the authenticated user
-
-    GET /snapshot/list
-    Headers: Authorization: Bearer <jwt_token>
-    """
-    try:
-        # Validate user_id from token
-        if not validate_user_id(current_user):
-            raise HTTPException(status_code=400, detail="Invalid user ID format")
-
-        snapshot_dir = f"/srv/snapshots/{current_user}"
-
-        # Validate the path to prevent directory traversal
-        if "../" in snapshot_dir or "..\\" in snapshot_dir:
-            raise HTTPException(status_code=500, detail="Invalid path detected")
-
-        if not os.path.exists(snapshot_dir):
-            return {"snapshots": []}
-
-        snapshots = []
-        for filename in os.listdir(snapshot_dir):
-            if filename.endswith(".tar.zst"):
-                filepath = os.path.join(snapshot_dir, filename)
-                # Additional validation to ensure we're only accessing files in the intended directory
-                if not filepath.startswith(f"/srv/snapshots/{current_user}/"):
-                    continue  # Skip files that would result from path traversal attempts
-                stat = os.stat(filepath)
-                snapshots.append({
-                    "snapshot_id": filename.removesuffix(".tar.zst"),
-                    "size": stat.st_size,
-                    "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat()
-                })
-
-        # Sort by creation time, newest first
-        snapshots.sort(key=lambda x: x["created_at"], reverse=True)
-
-        return {"snapshots": snapshots}
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to list snapshots: {str(e)}"
-        )
-
-
-# Automatic Snapshots Configuration
 SNAPSHOT_CONFIG = {
     "on_idle_suspend": True,
     "on_explicit_save": True,
     "daily": False,
-    "retention_count": 5  # Keep last 5 snapshots
+    "retention_count": 5,
 }
+
+
+@app.post("/snapshot/create", response_model=SnapshotResponse, tags=["snapshots"])
+async def create_snapshot(current_user: str = Depends(get_current_user)):
+    """
+    Create a snapshot of the requesting user's workspace.
+
+    Returns a SnapshotResponse with the snapshot ID and human-readable size.
+    """
+    if not validate_user_id(current_user):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    try:
+        result = await snap_mgr.create_snapshot(current_user)
+        await snap_mgr.enforce_retention(current_user, keep_count=SNAPSHOT_CONFIG["retention_count"])
+
+        snapshot_created_total.inc()
+        snapshot_size_bytes.observe(result.size_bytes)
+
+        return SnapshotResponse(
+            success=True,
+            message="Snapshot created successfully",
+            snapshot_id=result.snapshot_id,
+            size=_human_size(result.size_bytes),
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Snapshot creation failed: {e}")
+
+
+@app.post("/snapshot/restore", response_model=SnapshotResponse, tags=["snapshots"])
+async def restore_snapshot(request: SnapshotRestoreRequest, current_user: str = Depends(get_current_user)):
+    """
+    Restore a snapshot to user workspace.
+
+    POST /snapshot/restore
+    Headers: Authorization: Bearer <jwt_token>
+    Body: {"snapshot_id": "snap_001"}
+    """
+    if not validate_user_id(current_user):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    if not validate_input(request.snapshot_id):
+        raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
+
+    try:
+        await snap_mgr.restore_snapshot(current_user, request.snapshot_id)
+
+        snapshot_restored_total.inc()
+
+        return SnapshotResponse(
+            success=True,
+            message="Snapshot restored successfully",
+            snapshot_id=request.snapshot_id,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Snapshot restoration failed: {e}")
+
+
+@app.get("/snapshot/list", tags=["snapshots"])
+async def list_snapshots(current_user: str = Depends(get_current_user)):
+    """
+    List all snapshots for the authenticated user.
+
+    GET /snapshot/list
+    Headers: Authorization: Bearer <jwt_token>
+    """
+    if not validate_user_id(current_user):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    try:
+        snapshots = await snap_mgr.list_snapshots(current_user)
+        return {
+            "snapshots": [
+                {
+                    "snapshot_id": s.snapshot_id,
+                    "size": s.size_bytes,
+                    "created_at": s.created_at.isoformat(),
+                }
+                for s in snapshots
+            ]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list snapshots: {e}")
+
+
+@app.delete("/snapshot/{snapshot_id}", response_model=SnapshotResponse, tags=["snapshots"])
+async def delete_snapshot(snapshot_id: str, current_user: str = Depends(get_current_user)):
+    """
+    Delete a specific snapshot for the authenticated user.
+
+    DELETE /snapshot/{snapshot_id}
+    Headers: Authorization: Bearer <jwt_token>
+    """
+    if not validate_user_id(current_user):
+        raise HTTPException(status_code=400, detail="Invalid user ID format")
+
+    if not validate_input(snapshot_id):
+        raise HTTPException(status_code=400, detail="Invalid snapshot ID format")
+
+    deleted = await snap_mgr.delete_snapshot(current_user, snapshot_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+
+    return SnapshotResponse(
+        success=True,
+        message="Snapshot deleted successfully",
+        snapshot_id=snapshot_id,
+    )
 
 
 if __name__ == "__main__":
     import uvicorn
     import os
 
-    # Read host and port from environment variables with defaults
-    host = os.getenv("HOST", "127.0.0.1")  # Default to localhost for dev
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "8000"))
 
     uvicorn.run(app, host=host, port=port)

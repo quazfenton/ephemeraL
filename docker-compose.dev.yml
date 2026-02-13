@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_BUCKET=ephemeral-snapshots
+    volumes:
+      - .:/app
+      - snapshots:/app/snapshots
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+    command: ["uvicorn", "sandbox_api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ephemeral-net
+
+  preview-router:
+    build: .
+    ports:
+      - "8001:8000"
+    environment:
+      - PORT=8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_BUCKET=ephemeral-snapshots
+    volumes:
+      - .:/app
+      - snapshots:/app/snapshots
+    restart: unless-stopped
+    command: ["uvicorn", "preview_router:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      - ephemeral-net
+
+  snapshot-api:
+    build: .
+    ports:
+      - "8002:8000"
+    environment:
+      - PORT=8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - REDIS_URL=redis://redis:6379
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - MINIO_BUCKET=ephemeral-snapshots
+    volumes:
+      - .:/app
+      - snapshots:/app/snapshots
+    restart: unless-stopped
+    command: ["uvicorn", "snapshot_api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      - ephemeral-net
+
+  agent-api:
+    build: .
+    ports:
+      - "8003:8000"
+    environment:
+      - PORT=8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
+      - REDIS_URL=redis://redis:6379
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER:-ephemeral}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-ephemeral-secret}
+      - S3_BUCKET=ephemeral-snapshots
+    volumes:
+      - .:/app
+      - workspaces:/srv/workspaces
+      - snapshots:/srv/snapshots
+    depends_on:
+      - redis
+      - minio
+    restart: unless-stopped
+    command: ["uvicorn", "agent_api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      - ephemeral-net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - ephemeral-net
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ephemeral-net
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/ephemeral-snapshots;
+      exit 0;
+      "
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    networks:
+      - ephemeral-net
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+    networks:
+      - ephemeral-net
+
+volumes:
+  snapshots:
+  workspaces:
+  redis-data:
+  minio-data:
+
+networks:
+  ephemeral-net:
+    driver: bridge

@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Path as FastAPIPath, Depends, Header
+from fastapi import FastAPI, HTTPException, Path as FastAPIPath, Depends, Header, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from serverless_workers_sdk.background import BackgroundExecutor
 from serverless_workers_sdk.preview import PreviewRegistrar
 from serverless_workers_sdk.runtime import SandboxManager
 from serverless_workers_sdk.virtual_fs import VirtualFS
+from serverless_workers_sdk.metrics import (
+    MetricsMiddleware,
+    create_metrics_endpoint,
+    sandbox_created_total,
+    sandbox_active,
+    sandbox_exec_total,
+    sandbox_exec_duration_seconds,
+)
 
 from auth import get_user_id, validate_user_id
 
@@ -32,10 +41,25 @@ def get_current_user(authorization: str = Header(...)):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-app = FastAPI(title="Sandbox Control API", version="1.0")
+app = FastAPI(
+    title="Ephemeral Sandbox API",
+    version="1.0.0",
+    description="Cloud terminal platform API for sandbox lifecycle, file management, and preview routing.",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_tags=[
+        {"name": "sandboxes", "description": "Sandbox lifecycle management"},
+        {"name": "files", "description": "File operations within sandboxes"},
+        {"name": "preview", "description": "Preview URL management"},
+        {"name": "background", "description": "Background job management"},
+        {"name": "health", "description": "Health and readiness checks"},
+    ],
+)
 manager = SandboxManager()
 preview = PreviewRegistrar()
 backgrounds = BackgroundExecutor(manager)
+app.add_middleware(MetricsMiddleware)
+create_metrics_endpoint(app)
 
 
 class SandboxCreateRequest(BaseModel):
@@ -70,7 +94,7 @@ class BackgroundRequest(BaseModel):
     interval: int = 5
 
 
-@app.post("/sandboxes")
+@app.post("/sandboxes", tags=["sandboxes"])
 async def create_sandbox(payload: SandboxCreateRequest, current_user: str = Depends(get_current_user)):
     """
     Create a new sandbox workspace.
@@ -83,10 +107,12 @@ async def create_sandbox(payload: SandboxCreateRequest, current_user: str = Depe
         dict: A mapping with keys `sandbox_id` (the created sandbox's identifier) and `workspace` (the workspace path as a string).
     """
     sandbox = await manager.create_sandbox(payload.sandbox_id)
+    sandbox_created_total.inc()
+    sandbox_active.inc()
     return {"sandbox_id": sandbox.sandbox_id, "workspace": str(sandbox.workspace)}
 
 
-@app.post("/sandboxes/{sandbox_id}/exec")
+@app.post("/sandboxes/{sandbox_id}/exec", tags=["sandboxes"])
 async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str = Depends(get_current_user)):
     """
     Execute a command inside the specified sandbox.
@@ -102,6 +128,7 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
     Raises:
         HTTPException: If the specified sandbox does not exist (404).
     """
+    _t0 = time.monotonic()
     try:
         result = await manager.exec_command(
             sandbox_id=sandbox_id,
@@ -111,12 +138,14 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
             timeout=payload.timeout,
             requires_native=payload.requires_native,
         )
+        sandbox_exec_duration_seconds.observe(time.monotonic() - _t0)
+        sandbox_exec_total.labels(sandbox_id=sandbox_id, command=payload.command).inc()
         return result
     except KeyError:
         raise HTTPException(status_code=404, detail="Sandbox not found")
 
 
-@app.post("/sandboxes/{sandbox_id}/files")
+@app.post("/sandboxes/{sandbox_id}/files", tags=["files"])
 async def write_file(sandbox_id: str, payload: FileWriteRequest, current_user: str = Depends(get_current_user)):
     """
     Write a UTF-8 string into a file inside the specified sandbox.
@@ -143,7 +172,7 @@ async def write_file(sandbox_id: str, payload: FileWriteRequest, current_user: s
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.get("/sandboxes/{sandbox_id}/files")
+@app.get("/sandboxes/{sandbox_id}/files", tags=["files"])
 async def list_files(sandbox_id: str, path: Optional[str] = "", current_user: str = Depends(get_current_user)):
     """
     List entries in a sandbox directory.
@@ -163,7 +192,7 @@ async def list_files(sandbox_id: str, path: Optional[str] = "", current_user: st
         raise HTTPException(status_code=404, detail="Sandbox not found")
 
 
-@app.get("/sandboxes/{sandbox_id}/files/{file_path:path}")
+@app.get("/sandboxes/{sandbox_id}/files/{file_path:path}", tags=["files"])
 async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...), current_user: str = Depends(get_current_user)):
     """
     Read a file's contents from a sandbox's virtual filesystem.
@@ -189,7 +218,7 @@ async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...), current_
         raise HTTPException(status_code=404, detail="File not found")
 
 
-@app.post("/sandboxes/{sandbox_id}/preview")
+@app.post("/sandboxes/{sandbox_id}/preview", tags=["preview"])
 async def register_preview(sandbox_id: str, payload: PreviewRequest, current_user: str = Depends(get_current_user)):
     """
     Register a network preview for the specified sandbox and return its public URL.
@@ -217,7 +246,7 @@ async def register_preview(sandbox_id: str, payload: PreviewRequest, current_use
         raise HTTPException(status_code=404, detail="Sandbox not found")
 
 
-@app.post("/sandboxes/{sandbox_id}/keepalive")
+@app.post("/sandboxes/{sandbox_id}/keepalive", tags=["sandboxes"])
 async def keep_alive(sandbox_id: str, current_user: str = Depends(get_current_user)):
     """
     Mark the sandbox identified by `sandbox_id` as active to prevent expiration.
@@ -235,7 +264,7 @@ async def keep_alive(sandbox_id: str, current_user: str = Depends(get_current_us
         raise HTTPException(status_code=404, detail="Sandbox not found")
 
 
-@app.post("/sandboxes/{sandbox_id}/mount")
+@app.post("/sandboxes/{sandbox_id}/mount", tags=["sandboxes"])
 async def mount_path(sandbox_id: str, payload: MountRequest, current_user: str = Depends(get_current_user)):
     """
     Mounts a host filesystem path into the specified sandbox under the provided alias.
@@ -273,7 +302,7 @@ async def mount_path(sandbox_id: str, payload: MountRequest, current_user: str =
         raise HTTPException(status_code=404, detail="Mount target missing")
 
 
-@app.post("/sandboxes/{sandbox_id}/background")
+@app.post("/sandboxes/{sandbox_id}/background", tags=["background"])
 async def start_background(sandbox_id: str, payload: BackgroundRequest, current_user: str = Depends(get_current_user)):
     """
     Start a repeating background job in the specified sandbox.
@@ -301,7 +330,7 @@ async def start_background(sandbox_id: str, payload: BackgroundRequest, current_
         raise HTTPException(status_code=404, detail="Sandbox not found")
 
 
-@app.delete("/sandboxes/{sandbox_id}/background/{job_id}")
+@app.delete("/sandboxes/{sandbox_id}/background/{job_id}", tags=["background"])
 async def stop_background(sandbox_id: str, job_id: str, current_user: str = Depends(get_current_user)):
     """
     Stop a running background job for the given sandbox.
@@ -321,6 +350,53 @@ async def stop_background(sandbox_id: str, job_id: str, current_user: str = Depe
     if not success:
         raise HTTPException(status_code=404, detail="Job not found")
     return {"stopped": True}
+
+
+@app.get("/health", tags=["health"])
+async def health_check():
+    return {"status": "healthy", "version": "1.0.0"}
+
+
+@app.get("/health/ready", tags=["health"])
+async def readiness_check():
+    return {"status": "ready", "sandboxes_active": len(manager._sandboxes)}
+
+
+@app.websocket("/sandboxes/{sandbox_id}/terminal")
+async def terminal_websocket(websocket: WebSocket, sandbox_id: str):
+    """WebSocket terminal endpoint for interactive shell access (xterm.js compatible)."""
+    await websocket.accept()
+    try:
+        sandbox = await manager.get_sandbox(sandbox_id)
+        proc = await asyncio.create_subprocess_exec(
+            "/bin/bash",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(sandbox.workspace),
+        )
+
+        async def read_output():
+            while True:
+                data = await proc.stdout.read(4096)
+                if not data:
+                    break
+                await websocket.send_bytes(data)
+
+        output_task = asyncio.create_task(read_output())
+
+        try:
+            while True:
+                data = await websocket.receive_bytes()
+                proc.stdin.write(data)
+                await proc.stdin.drain()
+        except WebSocketDisconnect:
+            pass
+        finally:
+            output_task.cancel()
+            proc.terminate()
+    except KeyError:
+        await websocket.close(code=4004, reason="Sandbox not found")
 
 
 @app.on_event("shutdown")

@@ -19,3 +19,7 @@ python-dotenv>=1.0.0
 
 # Compression Library
 zstandard>=0.22.0
+
+# S3/MinIO Storage (optional - install manually if needed)
+# boto3>=1.34.0
+# aiobotocore>=2.9.0
