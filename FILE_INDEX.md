@@ -10,6 +10,12 @@ This document provides an overview of all files in the project and their purpose
 |------|-------------|---------------|
 | `auth.py` | Authentication and identity management | `get_user_id()`, `map_user_to_workspace()` |
 | `snapshot_api.py` | FastAPI REST API for snapshot operations | `/snapshot/create`, `/snapshot/restore`, `/snapshot/list` |
+| `sandbox_api.py` | Control plane API for managing sandboxes, exec, files, previews, and background jobs | `/sandboxes`, `/sandboxes/{id}/exec`, `/sandboxes/{id}/preview` |
+| `serverless_workers_sdk/runtime.py` | Runtime manager implementing exec/keepalive/mount APIs with quotas & event recording | `SandboxManager`, `SandboxInstance`, `SandboxRuntime` |
+| `serverless_workers_sdk/background.py` | Background job executor that keeps commands running inside sandboxes | `BackgroundExecutor`, `BackgroundJob` |
+| `serverless_workers_sdk/preview.py` | HTTP helper for registering preview URLs with the router | `PreviewRegistrar` |
+| `serverless_workers_sdk/recorder.py` | File-based event recorder used by the runtime for auditing | `EventRecorder` |
+| `preview_router.py` | FastAPI router that proxies preview sessions, registers preview URLs, and triggers fallback containers | `/preview/register`, `/preview/<sandbox>/<port>`, `/preview/list` |
 
 ### Shell Scripts
 
@@ -33,7 +39,10 @@ This document provides an overview of all files in the project and their purpose
 
 | File | Description | Purpose |
 |------|-------------|---------|
-| `requirements.txt` | Python package dependencies | FastAPI, jose, pydantic, etc. |
+| `requirements.txt` | Python package dependencies | FastAPI, jose, pydantic, httpx, etc. |
+| `serverless_workers_router/registry.py` | In-memory preview registry and health checker used by the preview router | `PreviewRegistry`, `PreviewTarget`, `HealthChecker` |
+| `serverless_workers_router/orchestrator.py` | Fallback orchestrator that spins up directory-based workspaces and short-lived HTTP servers | `FallbackOrchestrator`, `PortAllocator`, `ContainerFallback` |
+| `serverless_workers_sdk/runtime.py` | Runtime manager dependencies | `VirtualFS`, `QuotaManager`, `EventRecorder` |
 | `.env.example` | Environment variable template | Configuration examples |
 
 ## File Structure Overview
@@ -58,7 +67,11 @@ cloud-terminal-platform/
 │
 └── Configuration
     ├── requirements.txt        # Python dependencies
-    └── .env.example            # Environment template
+    ├── .env.example            # Environment template
+    └── serverless_workers_router/  # Preview router helpers
+        ├── __init__.py         # Package marker for router helpers
+        ├── orchestrator.py     # Fallback orchestrator
+        └── registry.py         # Preview registry + health checker
 ```
 
 ## Quick Reference
@@ -172,12 +185,16 @@ cloud-terminal-platform/
 │
 └── Configuration
     ├── requirements.txt        # Python dependencies
-    └── .env.example            # Environment template
+    ├── .env.example            # Environment template
+    └── serverless_workers_router/  # Preview router helpers
+        ├── __init__.py         # Package marker for router helpers
+        ├── orchestrator.py     # Fallback orchestrator
+        └── registry.py         # Preview registry + health checker
 ```
 
 ## Code Statistics (Updated)
 
-- **Python files**: 2
+- **Python files**: 12
 - **Shell scripts**: 3
 - **TypeScript files**: 4
 - **Docker files**: 1
@@ -209,6 +226,14 @@ cloud-terminal-platform/
 - Python 3.11+
 - Node.js 18+
 - AWS CLI
+
+## Latest Additions
+
+- `preview_router.py`: ingress router that proxies preview requests and integrates fallback containers.
+- `sandbox_api.py`: sandbox control API for exec, files, preview registration, keepalive, mounts, and background jobs.
+- `serverless_workers_sdk/`: runtime SDK providing quotas, event recording, background jobs, and preview helpers.
+- `serverless_workers_router/orchestrator.py`: fallback orchestrator launching directory-based HTTP servers when the primary runtime is unavailable.
+- `serverless_workers_router/registry.py`: registry plus health checker that tracks preview ports and toggles fallback mode.
 
 ## Source
 
