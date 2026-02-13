@@ -212,7 +212,6 @@ class SandboxManager:
                 "exit_code": proc.returncode,
             }
             await self._recorder.record("sandbox.exec.success", sandbox_id, {"cmd": cmd})
-            self._quota.record_execution(sandbox_id)
             return result
         finally:
             # Clean up the temporary script file if it was created

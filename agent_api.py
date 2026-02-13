@@ -316,8 +316,7 @@ async def list_collaborators(workspace_id: str, current_user: str = Depends(get_
     access = await manager.check_access(workspace_id, current_user)
     if access is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    async with manager._lock:
-        shares = manager._shares.get(workspace_id, {})
+    shares = await manager.get_workspace_shares(workspace_id)
     return {"collaborators": shares}
 
 
@@ -327,13 +326,12 @@ async def revoke_access(workspace_id: str, agent_id: str, current_user: str = De
     access = await manager.check_access(workspace_id, current_user)
     if access != "admin":
         raise HTTPException(status_code=403, detail="Only the workspace owner can revoke access")
-    async with manager._lock:
-        shares = manager._shares.get(workspace_id, {})
-        if agent_id not in shares:
-            raise HTTPException(status_code=404, detail="Agent not found in collaborators")
-        del shares[agent_id]
-        workspace = manager._workspaces[workspace_id]
-        workspace.shared_with = list(shares.keys())
+    try:
+        revoked = await manager.revoke_workspace_access(workspace_id, agent_id)
+        if not revoked:
+            raise HTTPException(status_code=404, detail="Agent not found in collaborators for this workspace")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Workspace not found")
     return {"revoked": True}
 
 

@@ -48,10 +48,9 @@ class QuotaManager:
 
     def allow_execution(self, sandbox_id: str) -> bool:
         """
-        DEPRECATED: Check and record an execution atomically to prevent race conditions.
-        
-        This method has a race condition when used alongside record_execution.
-        Use check_and_record_execution instead for atomic operation.
+        DEPRECATED: Check whether the specified sandbox has remaining executions available within the current one-hour window.
+        This method only checks and does not record an execution. It has a race condition when used alongside a separate `record_execution` call.
+        For atomic checking and recording, use `check_and_record_execution` instead.
 
         Parameters:
             sandbox_id (str): Identifier of the sandbox to check.
@@ -59,8 +58,15 @@ class QuotaManager:
         Returns:
             `true` if the sandbox has recorded fewer than `limit_per_hour` executions in the past hour, `false` otherwise.
         """
-        # Call the atomic method to prevent race conditions
-        return self.check_and_record_execution(sandbox_id)
+        now = time.time()
+        window = now - 3600
+        
+        with self._lock:
+            timestamps = self._counters.setdefault(sandbox_id, [])
+            # Remove expired timestamps
+            while timestamps and timestamps[0] < window:
+                timestamps.pop(0)
+            return len(timestamps) < self.limit_per_hour
 
     def record_execution(self, sandbox_id: str) -> None:
         """
@@ -142,8 +148,13 @@ class QuotaManager:
                 "network_egress_bytes": 0,
             })
             usage["memory_mb"] = memory_mb
-            ratio = memory_mb / self.quota.max_memory_mb
-            if ratio >= QUOTA_WARNING_THRESHOLD and ratio < 1.0:
+            if self.quota.max_memory_mb > 0:
+                ratio = memory_mb / self.quota.max_memory_mb
+                if ratio >= QUOTA_WARNING_THRESHOLD and ratio < 1.0:
+                    logger.warning(
+                        "Sandbox %s approaching memory limit: %dMB/%dMB",
+                        sandbox_id, memory_mb, self.quota.max_memory_mb,
+                    )
                 logger.warning(
                     "Sandbox %s approaching memory limit: %dMB/%dMB",
                     sandbox_id, memory_mb, self.quota.max_memory_mb,

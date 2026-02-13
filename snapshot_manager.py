@@ -207,25 +207,105 @@ class SnapshotManager:
 
     @staticmethod
     def _extract_snapshot(snapshot_path: Path, workspace: Path) -> None:
-        if workspace.exists():
-            shutil.rmtree(workspace)
-        workspace.mkdir(parents=True, exist_ok=True)
+        user_id = workspace.name  # e.g., 'user1' if workspace is Path('/srv/workspaces/user1')
 
-        workspace_parent = os.path.realpath(str(workspace.parent))
-        dctx = zstd.ZstdDecompressor()
-        with open(snapshot_path, "rb") as src:
-            with dctx.stream_reader(src) as decompressor:
-                with tarfile.open(fileobj=decompressor, mode="r|") as tar:
-                    for member in tar:
-                        if ".." in member.path or member.path.startswith("/"):
-                            logger.warning("Skipping unsafe path: %s", member.path)
-                            continue
-                        dest = os.path.realpath(
-                            os.path.join(workspace_parent, member.path),
-                        )
-                        if not dest.startswith(workspace_parent):
-                            logger.warning(
-                                "Skipping path outside target directory: %s", member.path,
+        # Create a temporary staging directory to extract into.
+        # `tempfile.TemporaryDirectory` handles unique naming and automatic cleanup on scope exit.
+        # It's created under `workspace.parent` to ensure it's on the same filesystem for atomic ops.
+        with tempfile.TemporaryDirectory(dir=workspace.parent, prefix=f"{user_id}_extract_") as stage_dir_str:
+            stage_dir = Path(stage_dir_str)
+            logger.debug("Created temporary staging directory for restoration: %s", stage_dir)
+
+            # This will be the new workspace directory after contents are moved and atomic swap.
+            # It's created next to the original `workspace` path.
+            final_tmp_workspace = workspace.with_suffix(".new_restore")
+            # Ensure any previous temporary directory from a failed attempt is cleaned.
+            if final_tmp_workspace.exists():
+                shutil.rmtree(final_tmp_workspace)
+            final_tmp_workspace.mkdir(parents=True, exist_ok=True)
+            logger.debug("Created final temporary workspace for atomic swap: %s", final_tmp_workspace)
+
+            try:
+                dctx = zstd.ZstdDecompressor()
+                with open(snapshot_path, "rb") as src:
+                    with dctx.stream_reader(src) as decompressor:
+                        with tarfile.open(fileobj=decompressor, mode="r|") as tar:
+                            archive_root_dir_found = False
+                            for member in tar:
+                                # Path safety checks: absolute paths or path traversal (e.g., '..' components)
+                                if ".." in Path(member.path).parts or member.path.startswith("/"):
+                                    logger.warning("Skipping unsafe path in archive: %s", member.path)
+                                    continue
+
+                                # Identify the expected top-level directory in the archive.
+                                # It should match the user_id for this workspace.
+                                if not archive_root_dir_found:
+                                    first_path_component = Path(member.path).parts[0]
+                                    if first_path_component != user_id:
+                                        raise tarfile.ExtractError(
+                                            f"Archive root directory mismatch: expected '{user_id}', "
+                                            f"found '{first_path_component}' in member '{member.path}'"
+                                        )
+                                    archive_root_dir_found = True
+                                
+                                # Ensure all members are strictly within the identified root (user_id).
+                                # This also handles the case where member.path *is* user_id (the directory entry itself).
+                                if not member.path.startswith(f"{user_id}{os.sep}") and member.path != user_id:
+                                    logger.warning(
+                                        "Skipping member outside expected archive root '%s': %s",
+                                        user_id, member.path
+                                    )
+                                    continue
+
+                                # Calculate the full intended destination path within the staging directory.
+                                # This accounts for the archive's structure (`user_id/content`).
+                                dest_full_path = Path(os.path.join(stage_dir, member.path))
+                                
+                                # Resolve the real path to guard against symlink attacks.
+                                real_dest_full_path = Path(os.path.realpath(str(dest_full_path)))
+
+                                # Check if the real resolved path is still within our designated staging directory.
+                                if not str(real_dest_full_path).startswith(str(stage_dir)):
+                                    logger.warning(
+                                        "Skipping path outside target staging directory (symlink attack?): %s -> %s",
+                                        member.path, real_dest_full_path
+                                    )
+                                    continue
+                                
+                                # Perform the extraction of the member to the staging directory.
+                                # This will create `stage_dir/user_id/...`
+                                tar.extract(member, path=stage_dir)
+                            
+                            logger.debug("Extracted archive members to staging directory: %s", stage_dir)
+
+                if not archive_root_dir_found:
+                    raise tarfile.ExtractError(f"No top-level directory '{user_id}' found in the archive.")
+
+                # The content is now in `stage_dir / user_id`.
+                # Move these contents to `final_tmp_workspace`.
+                extracted_content_root = stage_dir / user_id
+                if not extracted_content_root.is_dir():
+                    raise RuntimeError(f"Extracted content root not found or not a directory: {extracted_content_root}")
+
+                for item in os.listdir(extracted_content_root):
+                    shutil.move(extracted_content_root / item, final_tmp_workspace)
+                logger.debug("Moved contents from %s to %s", extracted_content_root, final_tmp_workspace)
+
+                # Atomically replace the old workspace with the new, fully extracted one.
+                # os.replace handles both cases: if workspace exists (replaces it) or not (renames).
+                if workspace.exists() and not workspace.is_dir():
+                    raise RuntimeError(f"Existing workspace {workspace} is not a directory.")
+
+                os.replace(final_tmp_workspace, workspace)
+                logger.info("Snapshot restored successfully to %s", workspace)
+
+            except Exception as e:
+                logger.error("Failed to extract snapshot for workspace %s: %s", workspace, e)
+                # `tempfile.TemporaryDirectory` will clean up `stage_dir` automatically.
+                # `final_tmp_workspace` needs explicit cleanup if it was created and `os.replace` failed.
+                if final_tmp_workspace.exists():
+                    shutil.rmtree(final_tmp_workspace)
+                raise  # Re-raise the exception
                             )
                             continue
                         tar.extract(member, path=workspace_parent)

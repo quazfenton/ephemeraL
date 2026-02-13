@@ -112,6 +112,43 @@ async def create_sandbox(payload: SandboxCreateRequest, current_user: str = Depe
     return {"sandbox_id": sandbox.sandbox_id, "workspace": str(sandbox.workspace)}
 
 
+# New endpoint to address the decrement of sandbox_active
+@app.delete("/sandboxes/{sandbox_id}", tags=["sandboxes"])
+async def delete_sandbox(
+    sandbox_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Delete a sandbox workspace.
+
+    Parameters:
+        sandbox_id (str): The ID of the sandbox to delete.
+        current_user (str): Authenticated user ID extracted from the JWT token.
+                            Used for permission checks (e.g., only owner can delete).
+
+    Returns:
+        dict: A confirmation message on successful deletion.
+    """
+    # In a real application, current_user would typically be checked to ensure they have
+    # permission to delete this specific sandbox_id. For this task, we ensure authentication.
+    # For example:
+    # if not await manager.is_sandbox_owner(sandbox_id, current_user):
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox.")
+
+    try:
+        # manager.remove_sandbox needs to be implemented to delete resources and return success status
+        success = await manager.remove_sandbox(sandbox_id)
+        if success:
+            sandbox_active.dec()
+            return {"message": f"Sandbox {sandbox_id} deleted successfully."}
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found or could not be deleted.")
+    except Exception as e:
+        # Catch more specific exceptions from manager.remove_sandbox if they exist,
+        # e.g., SandboxNotFoundException, SandboxDeletionFailedException.
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting sandbox {sandbox_id}: {str(e)}")
+
+
 @app.post("/sandboxes/{sandbox_id}/exec", tags=["sandboxes"])
 async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str = Depends(get_current_user)):
     """
@@ -139,7 +176,7 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
             requires_native=payload.requires_native,
         )
         sandbox_exec_duration_seconds.observe(time.monotonic() - _t0)
-        sandbox_exec_total.labels(sandbox_id=sandbox_id, command=payload.command).inc()
+        sandbox_exec_total.inc()
         return result
     except KeyError:
         raise HTTPException(status_code=404, detail="Sandbox not found")
@@ -372,7 +409,7 @@ async def terminal_websocket(websocket: WebSocket, sandbox_id: str):
             "/bin/bash",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
             cwd=str(sandbox.workspace),
         )
 

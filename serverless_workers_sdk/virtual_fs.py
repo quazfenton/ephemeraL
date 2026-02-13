@@ -42,7 +42,21 @@ class VirtualFS:
             target_path = str(self.mounts[parts[0]])
             remaining_parts = parts[1:] if len(parts) > 1 else []
             if remaining_parts:
-                return Path(target_path).joinpath(*remaining_parts)
+                # Validate remaining parts for directory traversal
+                normalized = []
+                for part in remaining_parts:
+                    if part == "..":
+                        if not normalized:
+                            raise ValueError("directory traversal prevented")
+                        normalized.pop()
+                    elif part != "." and part != "":
+                        normalized.append(part)
+                result = Path(target_path).joinpath(*normalized) if normalized else Path(target_path)
+                try:
+                    result.resolve().relative_to(Path(target_path).resolve())
+                except ValueError:
+                    raise ValueError("directory traversal prevented")
+                return result
             else:
                 return Path(target_path)
 
