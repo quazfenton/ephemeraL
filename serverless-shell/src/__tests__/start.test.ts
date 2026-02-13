@@ -117,19 +117,21 @@ describe('Start Lambda Function', () => {
     const originalClusterName = process.env.CLUSTER_NAME;
     delete process.env.CLUSTER_NAME;
 
-    const event = {
-      headers: {
-        Authorization: 'Bearer test-token'
-      }
-    };
+    try {
+      const event = {
+        headers: {
+          Authorization: 'Bearer test-token'
+        }
+      };
 
-    const result = await handler(event);
+      const result = await handler(event);
 
-    expect(result.statusCode).toBe(500);
-    const responseBody = JSON.parse(result.body);
-    expect(responseBody.error).toBe('Internal server error: Missing configuration');
-
-    // Restore the environment variable
-    process.env.CLUSTER_NAME = originalClusterName;
+      expect(result.statusCode).toBe(500);
+      const responseBody = JSON.parse(result.body);
+      expect(responseBody.error).toBe('Internal server error: Missing configuration');
+    } finally {
+      // Restore the environment variable even if the test fails
+      process.env.CLUSTER_NAME = originalClusterName;
+    }
   });
 });

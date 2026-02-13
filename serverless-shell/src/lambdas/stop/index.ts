@@ -1,5 +1,6 @@
 import { ECSClient, StopTaskCommand, DescribeTasksCommand } from "@aws-sdk/client-ecs";
-import { DynamoDBClient, DeleteItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, DeleteItemCommand, GetItemCommand, GetItemCommandInput } from "@aws-sdk/client-dynamodb";
+import { verify } from 'jsonwebtoken';
 
 const ecs = new ECSClient({});
 const ddb = new DynamoDBClient({});
@@ -23,14 +24,46 @@ interface StopResponse {
  * Validates the session belongs to the requesting user
  */
 const validateSessionOwnership = (sessionItem: any, authHeader?: string): boolean => {
-  // In a real implementation, you would validate that the session belongs to the user
-  // For now, we'll just return true
-  return true;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const token = authHeader.substring(7);
+
+  try {
+    // In a real implementation, you would verify the JWT against your identity provider's public key
+    // For now, we'll decode it and extract the user ID
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET environment variable is not configured');
+      return false;
+    }
+    const decoded: any = verify(token, jwtSecret);
+    const userId = decoded.sub || decoded.userId;
+
+    // Compare the authenticated user ID with the session owner
+    const sessionUserId = sessionItem.user.S;
+
+    return userId === sessionUserId;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return false;
+  }
 };
 
 export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => {
+  // Sanitize headers to avoid logging sensitive information
+  const sanitizedHeaders = Object.keys(event.headers).reduce((acc, key) => {
+    if (key.toLowerCase() === 'authorization') {
+      acc[key] = '[REDACTED]';
+    } else {
+      acc[key] = event.headers[key];
+    }
+    return acc;
+  }, {} as Record<string, string | undefined>);
+
   console.log('Stop shell session request received:', JSON.stringify({
-    headers: event.headers,
+    headers: sanitizedHeaders,
     body: event.body ? 'present' : 'missing'
   }, null, 2));
 
@@ -138,6 +171,7 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
     const sessionUser = sessionResult.Item.user.S;
 
     // Check if task is still running before attempting to stop
+    let taskStoppedSuccessfully = true;
     try {
       const taskDesc = await ecs.send(new DescribeTasksCommand({
         cluster: process.env.CLUSTER_NAME,
@@ -148,27 +182,30 @@ export const handler = async (event: APIGatewayEvent): Promise<StopResponse> => 
         const task = taskDesc.tasks[0];
         if (task.lastStatus === "STOPPED" || task.lastStatus === "DELETED") {
           console.log(`Task for session ${sessionId} is already stopped`);
-          // Still delete the session record even if task is already stopped
+          // Task is already stopped, so we can safely delete the session record
         } else {
           // 2. Stop Fargate Task
           await ecs.send(new StopTaskCommand({
             cluster: process.env.CLUSTER_NAME,
             task: taskArn
           }));
-          
+
           console.log(`Task ${taskArn} stopped for session ${sessionId}`);
         }
       }
     } catch (ecsError) {
       console.error(`Error checking/stopping task ${taskArn} for session ${sessionId}:`, ecsError);
-      // Continue with deleting the session record even if ECS operation fails
+      taskStoppedSuccessfully = false;
+      // Don't delete the session record if ECS operation fails
     }
 
-    // 3. Remove session from DB
-    await ddb.send(new DeleteItemCommand({
-      TableName: process.env.TABLE_NAME,
-      Key: { sessionId: { S: sessionId } }
-    }));
+    // 3. Remove session from DB only if the task was successfully stopped
+    if (taskStoppedSuccessfully) {
+      await ddb.send(new DeleteItemCommand({
+        TableName: process.env.TABLE_NAME,
+        Key: { sessionId: { S: sessionId } }
+      }));
+    }
 
     console.log(`Session ${sessionId} terminated for user ${sessionUser}`);
 
