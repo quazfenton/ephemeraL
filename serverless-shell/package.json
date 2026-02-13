@@ -22,7 +22,7 @@
     "aws-sdk-client-mock": "^3.0.0"
   },
   "dependencies": {
-    "aws-cdk-lib": "2.104.0",
+    "aws-cdk-lib": "2.189.1",
     "constructs": "^10.0.0",
     "@aws-sdk/client-ecs": "^3.0.0",
     "@aws-sdk/client-dynamodb": "^3.0.0",
