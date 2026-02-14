@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -264,9 +265,8 @@ class SnapshotManager:
                                 
                                 # Resolve the real path to guard against symlink attacks.
                                 real_dest_full_path = Path(os.path.realpath(str(dest_full_path)))
-
                                 # Check if the real resolved path is still within our designated staging directory.
-                                if not str(real_dest_full_path).startswith(str(stage_dir)):
+                                if not str(real_dest_full_path).startswith(str(stage_dir) + os.sep) and real_dest_full_path != stage_dir:
                                     logger.warning(
                                         "Skipping path outside target staging directory (symlink attack?): %s -> %s",
                                         member.path, real_dest_full_path
@@ -316,9 +316,7 @@ class SnapshotManager:
                 if final_tmp_workspace.exists():
                     shutil.rmtree(final_tmp_workspace)
                 raise  # Re-raise the exception
-                            raise
-                        tar.extract(member, path=workspace_parent)
-
+                 raise  # Re-raise the exception
     # -- list -----------------------------------------------------------------
 
     async def list_snapshots(self, user_id: str) -> list[SnapshotInfo]:

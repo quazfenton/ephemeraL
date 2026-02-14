@@ -222,6 +222,7 @@ class MetricsRegistry:
         return metric
 
     def render(self) -> str:
+    def render(self) -> str:
         lines: List[str] = []
         with self._lock:
             metrics = list(self._metrics)
@@ -232,13 +233,12 @@ class MetricsRegistry:
             lines.append(f"# TYPE {metric.name} {prom_type}")
             for sample_name, labels, value in metric._collect():
                 label_str = _format_labels(labels)
-                if value == int(value):
+                if not (isinstance(value, float) and (value != value or value == float("inf") or value == float("-inf"))) and value == int(value):
                     lines.append(f"{sample_name}{label_str} {int(value)}")
                 else:
                     lines.append(f"{sample_name}{label_str} {value}")
         lines.append("")
         return "\n".join(lines)
-
 
 # ---------------------------------------------------------------------------
 # Pre-defined application metrics

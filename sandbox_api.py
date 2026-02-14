@@ -136,6 +136,21 @@ async def delete_sandbox(
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox.")
 
     try:
+        success = await manager.remove_sandbox(sandbox_id, current_user)
+        if success:
+            sandbox_active.dec()
+            return {"message": f"Sandbox {sandbox_id} deleted successfully."}
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found or could not be deleted.")
+    except SandboxNotFoundException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found.")
+    except SandboxDeletionFailedException as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting sandbox {sandbox_id}: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Unexpected error deleting sandbox {sandbox_id}: {str(e)}")
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox.")
+
+    try:
         # Use existing removal API instead of unimplemented remove_sandbox
         success = await manager.delete_sandbox(sandbox_id)
         if success:
@@ -439,6 +454,7 @@ async def terminal_websocket(websocket: WebSocket, sandbox_id: str):
         finally:
             output_task.cancel()
             proc.terminate()
+            await proc.wait()
     except KeyError:
         await websocket.close(code=4004, reason="Sandbox not found")
 

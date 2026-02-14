@@ -200,6 +200,7 @@ class SandboxManager:
                 proc.kill()
                 await proc.wait()
                 stdout, stderr = b"", b""
+                await self._recorder.record("sandbox.exec.timeout", sandbox_id, {"cmd": cmd, "timeout": timeout})
                 return {
                     "stdout": stdout.decode(errors="ignore"),
                     "stderr": "Execution timed out",

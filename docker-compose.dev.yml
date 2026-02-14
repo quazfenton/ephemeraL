@@ -44,6 +44,9 @@ services:
     volumes:
       - .:/app
       - snapshots:/app/snapshots
+    depends_on:
+      - redis
+      - minio
     restart: unless-stopped
     command: ["uvicorn", "preview_router:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     networks:
@@ -92,8 +95,6 @@ services:
     command: ["uvicorn", "agent_api:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     networks:
       - ephemeral-net
-
-  redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"

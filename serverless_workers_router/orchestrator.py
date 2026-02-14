@@ -205,7 +205,7 @@ class FallbackOrchestrator:
             if info.stderr:
                 info.stderr.close()
             # Release the port back to the allocator
-            self.port_allocator.release(info.port) if info else None
+            await self.port_allocator.release(info.port)
             self.container.stop_container(sandbox_id)
 
     async def cleanup_stale(self) -> None:
@@ -222,9 +222,8 @@ class FallbackOrchestrator:
                         info.stdout.close()
                     if info.stderr:
                         info.stderr.close()
-
                     # Release the port back to the allocator
-                    self.port_allocator.release(info.port)
+                    await self.port_allocator.release(info.port)
                     
                     self._processes.pop(sandbox_id)
                     self.container.stop_container(sandbox_id)

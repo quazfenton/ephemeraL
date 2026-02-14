@@ -87,7 +87,7 @@ class S3StorageBackend(StorageBackend):
     def _full_key(self, remote_key: str) -> str:
         return f"{self._config.prefix}{remote_key}"
 
-    async def upload(self, local_path: Path, remote_key: str) -> str:
+    async def upload(self, local_path: Path, remote_key: str) -> None:
         full_key = self._full_key(remote_key)
         file_size = local_path.stat().st_size
 
@@ -100,7 +100,6 @@ class S3StorageBackend(StorageBackend):
             await asyncio.to_thread(self._simple_upload, local_path, full_key)
 
         logger.info("Uploaded %s -> s3://%s/%s", local_path, self._config.bucket, full_key)
-        return f"s3://{self._config.bucket}/{full_key}"
 
     def _simple_upload(self, local_path: Path, full_key: str) -> None:
         client = self._get_client()
@@ -153,25 +152,35 @@ class S3StorageBackend(StorageBackend):
 
     async def list_objects(self, prefix: str) -> list[StorageObject]:
         full_prefix = self._full_key(prefix)
+        objects: list[StorageObject] = []
+        continuation_token = None
         try:
-            response = await asyncio.to_thread(
-                self._get_client().list_objects_v2,
-                Bucket=self._config.bucket,
-                Prefix=full_prefix,
-            )
-            objects: list[StorageObject] = []
-            for obj in response.get("Contents", []):
-                key = obj["Key"]
-                if key.startswith(self._config.prefix):
-                    key = key[len(self._config.prefix) :]
-                objects.append(
-                    StorageObject(
-                        key=key,
-                        size=obj["Size"],
-                        last_modified=obj["LastModified"],
-                        etag=obj.get("ETag", ""),
-                    )
+            while True:
+                response = await asyncio.to_thread(
+                    self._get_client().list_objects_v2,
+                    Bucket=self._config.bucket,
+                    Prefix=full_prefix,
+                    ContinuationToken=continuation_token,
                 )
+                for obj in response.get("Contents", []):
+                    key = obj["Key"]
+                    if key.startswith(self._config.prefix):
+                        key = key[len(self._config.prefix) :]
+                    objects.append(
+                        StorageObject(
+                            key=key,
+                            size=obj["Size"],
+                            last_modified=obj["LastModified"],
+                            etag=obj.get("ETag", ""),
+                        )
+                    )
+                if not response.get("IsTruncated"):
+                    break
+                continuation_token = response.get("NextContinuationToken")
+            return objects
+        except Exception:
+            logger.exception("Failed to list objects with prefix %s", full_prefix)
+            return []
             return objects
         except Exception:
             logger.exception("Failed to list objects with prefix %s", full_prefix)
