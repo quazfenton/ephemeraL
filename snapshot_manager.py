@@ -306,8 +306,7 @@ class SnapshotManager:
                 if final_tmp_workspace.exists():
                     shutil.rmtree(final_tmp_workspace)
                 raise  # Re-raise the exception
-                            )
-                            continue
+                            raise
                         tar.extract(member, path=workspace_parent)
 
     # -- list -----------------------------------------------------------------

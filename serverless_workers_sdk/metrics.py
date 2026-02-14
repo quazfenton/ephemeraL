@@ -36,7 +36,6 @@ def _format_labels(labels: Dict[str, str]) -> str:
         return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"")
     pairs = ",".join(f'{k}="{escape_value(v)}"' for k, v in sorted(labels.items()))
     return "{" + pairs + "}"
-    return "{" + pairs + "}"
 
 
 # ---------------------------------------------------------------------------
