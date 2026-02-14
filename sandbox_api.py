@@ -136,13 +136,20 @@ async def delete_sandbox(
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox.")
 
     try:
-        # manager.remove_sandbox needs to be implemented to delete resources and return success status
-        success = await manager.remove_sandbox(sandbox_id)
+        # Use existing removal API instead of unimplemented remove_sandbox
+        success = await manager.delete_sandbox(sandbox_id)
         if success:
             sandbox_active.dec()
             return {"message": f"Sandbox {sandbox_id} deleted successfully."}
         else:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found or could not be deleted.")
+        if success:
+            sandbox_active.dec()
+            return {"message": f"Sandbox {sandbox_id} deleted successfully."}
+        else:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found or could not be deleted.")
+    except HTTPException:
+        raise
     except Exception as e:
         # Catch more specific exceptions from manager.remove_sandbox if they exist,
         # e.g., SandboxNotFoundException, SandboxDeletionFailedException.
@@ -176,7 +183,7 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
             requires_native=payload.requires_native,
         )
         sandbox_exec_duration_seconds.observe(time.monotonic() - _t0)
-        sandbox_exec_total.inc()
+        sandbox_exec_total.labels(sandbox_id=sandbox_id, command=payload.command).inc()
         return result
     except KeyError:
         raise HTTPException(status_code=404, detail="Sandbox not found")

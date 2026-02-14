@@ -309,14 +309,18 @@ async def share_workspace(workspace_id: str, payload: ShareWorkspaceRequest, cur
     except KeyError:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
-
 @app.get("/workspaces/{workspace_id}/collaborators", tags=["sharing"])
 async def list_collaborators(workspace_id: str, current_user: str = Depends(get_current_user)):
     """List all collaborators on a workspace."""
     access = await manager.check_access(workspace_id, current_user)
     if access is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    shares = await manager.get_workspace_shares(workspace_id)
+    async with manager._lock:
+        shares = manager._shares.get(workspace_id, {})
+    return {"collaborators": shares}
+
+@app.delete("/workspaces/{workspace_id}/share/{agent_id}", tags=["sharing"])
+async def revoke_access(workspace_id: str, agent_id: str, current_user: str = Depends(get_current_user)):
     return {"collaborators": shares}
 
 

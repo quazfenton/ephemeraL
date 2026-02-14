@@ -37,7 +37,6 @@ def _format_labels(labels: Dict[str, str]) -> str:
     pairs = ",".join(f'{k}="{escape_value(v)}"' for k, v in sorted(labels.items()))
     return "{" + pairs + "}"
 
-
 # ---------------------------------------------------------------------------
 # Metric types
 # ---------------------------------------------------------------------------

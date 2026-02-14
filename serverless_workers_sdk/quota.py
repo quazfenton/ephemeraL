@@ -155,9 +155,6 @@ class QuotaManager:
                         "Sandbox %s approaching memory limit: %dMB/%dMB",
                         sandbox_id, memory_mb, self.quota.max_memory_mb,
                     )
-                logger.warning(
-                    "Sandbox %s approaching memory limit: %dMB/%dMB",
-                    sandbox_id, memory_mb, self.quota.max_memory_mb,
                 )
 
     def record_storage_usage(self, sandbox_id: str, storage_bytes: int) -> None:

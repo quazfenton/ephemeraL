@@ -57,7 +57,7 @@ class PortAllocator:
                     self._current += 1
                     return port
                 self._current += 1
-            
+
             # Wrap around if needed
             if self._current > self._end:
                 self._current = self._start
@@ -68,12 +68,19 @@ class PortAllocator:
                         self._current += 1
                         return port
                     self._current += 1
-            
+
             # If all ports are allocated, raise an exception
             raise RuntimeError("All ports in the range are allocated")
 
+    def release(self, port: int) -> None:
+        """
+        Release an allocated port so it can be reused.
 
-    async def release(self, port: int) -> None:
+        Parameters:
+            port (int): The port number to release.
+        """
+        if port in self._allocated_ports:
+            self._allocated_ports.remove(port)
         """
         Release an allocated port so it can be reused.
 

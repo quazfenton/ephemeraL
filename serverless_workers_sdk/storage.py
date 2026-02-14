@@ -37,14 +37,12 @@ class StorageConfig:
             prefix=os.getenv("S3_PREFIX", "snapshots/"),
         )
 
-
 @dataclass
 class StorageObject:
     key: str
     size: int
     last_modified: datetime
     etag: str
-
 
 class StorageBackend(ABC):
     @abstractmethod
@@ -57,7 +55,10 @@ class StorageBackend(ABC):
     async def delete(self, remote_key: str) -> bool: ...
 
     @abstractmethod
-    async def list(self, prefix: str) -> list[str]: ...
+    async def list_keys(self, prefix: str) -> list[str]: ...
+
+    @abstractmethod
+    async def exists(self, remote_key: str) -> bool: ...
 
     @abstractmethod
     async def exists(self, remote_key: str) -> bool: ...

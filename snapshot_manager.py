@@ -192,7 +192,6 @@ class SnapshotManager:
         snapshot_path = self._snapshot_path(user_id, snapshot_id)
         if not snapshot_path.exists():
             raise FileNotFoundError(f"Snapshot not found: {snapshot_path}")
-
         workspace = self._user_workspace(user_id)
 
         async def _extract() -> None:
@@ -213,6 +212,8 @@ class SnapshotManager:
         # `tempfile.TemporaryDirectory` handles unique naming and automatic cleanup on scope exit.
         # It's created under `workspace.parent` to ensure it's on the same filesystem for atomic ops.
         with tempfile.TemporaryDirectory(dir=workspace.parent, prefix=f"{user_id}_extract_") as stage_dir_str:
+            stage_dir = Path(stage_dir_str)
+            logger.debug("Created temporary staging directory for restoration: %s", stage_dir)
             stage_dir = Path(stage_dir_str)
             logger.debug("Created temporary staging directory for restoration: %s", stage_dir)
 
@@ -292,11 +293,20 @@ class SnapshotManager:
                 logger.debug("Moved contents from %s to %s", extracted_content_root, final_tmp_workspace)
 
                 # Atomically replace the old workspace with the new, fully extracted one.
-                # os.replace handles both cases: if workspace exists (replaces it) or not (renames).
-                if workspace.exists() and not workspace.is_dir():
-                    raise RuntimeError(f"Existing workspace {workspace} is not a directory.")
+                # First remove or backup the old workspace to handle non-empty directories.
+                backup = workspace.with_suffix(".old_restore")
+                if workspace.exists():
+                    if not workspace.is_dir():
+                        raise RuntimeError(f"Existing workspace {workspace} is not a directory.")
+                    workspace.rename(backup)
+                os.rename(final_tmp_workspace, workspace)
+                if backup.exists():
+                    shutil.rmtree(backup)
+                logger.info("Snapshot restored successfully to %s", workspace)
 
-                os.replace(final_tmp_workspace, workspace)
+            except Exception as e:
+                logger.error("Failed to extract snapshot for workspace %s: %s", workspace, e)
+                # `tempfile.TemporaryDirectory` will clean up `stage_dir` automatically.
                 logger.info("Snapshot restored successfully to %s", workspace)
 
             except Exception as e:
