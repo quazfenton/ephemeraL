@@ -48,16 +48,16 @@ class StorageObject:
 
 class StorageBackend(ABC):
     @abstractmethod
-    async def upload(self, local_path: Path, remote_key: str) -> str: ...
+    async def upload(self, local_path: Path, remote_key: str) -> None: ...
 
     @abstractmethod
-    async def download(self, remote_key: str, local_path: Path) -> bool: ...
+    async def download(self, remote_key: str, local_path: Path) -> None: ...
 
     @abstractmethod
     async def delete(self, remote_key: str) -> bool: ...
 
     @abstractmethod
-    async def list_objects(self, prefix: str) -> list[StorageObject]: ...
+    async def list(self, prefix: str) -> list[str]: ...
 
     @abstractmethod
     async def exists(self, remote_key: str) -> bool: ...
@@ -132,8 +132,8 @@ class S3StorageBackend(StorageBackend):
             )
             logger.info("Downloaded s3://%s/%s -> %s", self._config.bucket, full_key, local_path)
             return True
-        except Exception:
-            logger.exception("Failed to download %s", full_key)
+        except Exception as e:
+            logger.exception("Failed to download %s: %s", full_key, e)
             return False
 
     async def delete(self, remote_key: str) -> bool:
@@ -195,7 +195,21 @@ class LocalStorageBackend(StorageBackend):
         self._base_dir.mkdir(parents=True, exist_ok=True)
 
     def _full_path(self, remote_key: str) -> Path:
-        return self._base_dir / remote_key
+        if Path(remote_key).is_absolute():
+            raise ValueError(f"Absolute path not allowed for remote_key: {remote_key!r}")
+
+        base_resolved = self._base_dir.resolve()
+        candidate_resolved = (self._base_dir / remote_key).resolve()
+
+        try:
+            # This will raise a ValueError if candidate_resolved is not a child of base_resolved
+            candidate_resolved.relative_to(base_resolved)
+        except ValueError as e:
+            raise ValueError(
+                f"Path traversal detected or path outside base directory: {remote_key!r}"
+            ) from e
+
+        return candidate_resolved
 
     async def upload(self, local_path: Path, remote_key: str) -> str:
         target = self._full_path(remote_key)

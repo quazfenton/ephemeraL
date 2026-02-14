@@ -72,15 +72,17 @@ class PortAllocator:
             # If all ports are allocated, raise an exception
             raise RuntimeError("All ports in the range are allocated")
 
-    def release(self, port: int) -> None:
+
+    async def release(self, port: int) -> None:
         """
         Release an allocated port so it can be reused.
 
         Parameters:
             port (int): The port number to release.
         """
-        if self._start <= port <= self._end:
-            self._allocated_ports.discard(port)
+        async with self._lock:
+            if self._start <= port <= self._end:
+                self._allocated_ports.discard(port)
 
 
 class FallbackOrchestrator:

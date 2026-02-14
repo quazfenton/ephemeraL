@@ -15,7 +15,6 @@ DEFAULT_BUCKETS: Tuple[float, ...] = (
     0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
     float("inf"),
 )
-
 SIZE_BUCKETS: Tuple[float, ...] = (
     1024,            # 1 KB
     10240,           # 10 KB
@@ -27,15 +26,16 @@ SIZE_BUCKETS: Tuple[float, ...] = (
     float("inf"),
 )
 
-
 def _label_key(labels: Dict[str, str]) -> Tuple[Tuple[str, str], ...]:
     return tuple(sorted(labels.items()))
-
 
 def _format_labels(labels: Dict[str, str]) -> str:
     if not labels:
         return ""
-    pairs = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
+    def escape_value(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("\n", "\\n").replace("\"", "\\\"")
+    pairs = ",".join(f'{k}="{escape_value(v)}"' for k, v in sorted(labels.items()))
+    return "{" + pairs + "}"
     return "{" + pairs + "}"
 
 
