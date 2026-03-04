@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import shutil
 import uuid
@@ -15,6 +16,8 @@ from serverless_workers_sdk.background import BackgroundJob
 from serverless_workers_sdk.quota import QuotaManager
 from serverless_workers_sdk.recorder import EventRecorder
 from serverless_workers_sdk.virtual_fs import VirtualFS
+
+logger = logging.getLogger(__name__)
 
 SANDBOX_ROOT = Path(os.getenv("SANDBOX_ROOT") or __import__('tempfile').mkdtemp(prefix="serverless_sandboxes_", mode=0o700))
 ALLOWED_COMMANDS = {"python", "node"}
@@ -292,3 +295,43 @@ class SandboxManager:
             except asyncio.CancelledError:
                 pass  # Expected when task is cancelled
             await self._recorder.record("sandbox.background.stopped", sandbox_id, {"job_id": job_id})
+
+    async def remove_sandbox(self, sandbox_id: str) -> bool:
+        """
+        Remove a sandbox instance and clean up its resources.
+
+        Parameters:
+            sandbox_id (str): Identifier of the sandbox to remove.
+
+        Returns:
+            bool: True if the sandbox was successfully removed, False if it didn't exist.
+        """
+        async with self._lock:
+            if sandbox_id not in self._sandboxes:
+                return False
+            
+            sandbox = self._sandboxes.pop(sandbox_id)
+            
+            # Stop all background jobs
+            for job in sandbox.background_jobs.values():
+                job.task.cancel()
+                try:
+                    await job.task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Clean up workspace directory
+            import shutil
+            if sandbox.workspace.exists():
+                try:
+                    shutil.rmtree(sandbox.workspace)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up workspace for {sandbox_id}: {e}")
+            
+            # Record the deletion
+            await self._recorder.record("sandbox.destroyed", sandbox_id)
+            
+            # Update quota tracking
+            self._quota.record_sandbox_destroyed(sandbox_id)
+            
+            return True

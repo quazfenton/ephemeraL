@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Path as FastAPIPath, Depends, Header, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Path as FastAPIPath, Depends, Header, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 
 from serverless_workers_sdk.background import BackgroundExecutor
@@ -22,6 +22,11 @@ from serverless_workers_sdk.metrics import (
     sandbox_active,
     sandbox_exec_total,
     sandbox_exec_duration_seconds,
+)
+from serverless_workers_sdk.validation import (
+    validate_file_path,
+    validate_identifier,
+    validate_exec_payload,
 )
 
 from auth import get_user_id, validate_user_id
@@ -165,6 +170,17 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
     Raises:
         HTTPException: If the specified sandbox does not exist (404).
     """
+    # Validate sandbox_id
+    is_valid, error = validate_identifier(sandbox_id, "Sandbox ID")
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    
+    # Validate exec payload
+    payload_dict = payload.model_dump()
+    is_valid, error = validate_exec_payload(payload_dict)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    
     _t0 = time.monotonic()
     try:
         result = await manager.exec_command(
@@ -222,6 +238,17 @@ async def list_files(sandbox_id: str, path: Optional[str] = "", current_user: st
     Returns:
         dict: A mapping with key `"entries"` containing the directory entries returned by the sandbox filesystem.
     """
+    # Validate sandbox_id
+    is_valid, error = validate_identifier(sandbox_id, "Sandbox ID")
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    
+    # Validate path if provided
+    if path:
+        is_valid, error = validate_file_path(path)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error)
+    
     try:
         sandbox = await manager.get_sandbox(sandbox_id)
         return {"entries": sandbox.fs.list_dir(path)}
@@ -245,6 +272,16 @@ async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...), current_
     Raises:
         HTTPException: 404 with detail "Sandbox not found" if the sandbox does not exist, or 404 with detail "File not found" if the file does not exist.
     """
+    # Validate sandbox_id
+    is_valid, error = validate_identifier(sandbox_id, "Sandbox ID")
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    
+    # Validate file_path
+    is_valid, error = validate_file_path(file_path)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error)
+    
     try:
         sandbox = await manager.get_sandbox(sandbox_id)
         content = sandbox.fs.read(file_path)

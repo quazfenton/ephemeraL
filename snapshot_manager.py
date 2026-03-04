@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -306,9 +307,6 @@ class SnapshotManager:
                 if final_tmp_workspace.exists():
                     shutil.rmtree(final_tmp_workspace)
                 raise  # Re-raise the exception
-                            )
-                            continue
-                        tar.extract(member, path=workspace_parent)
 
     # -- list -----------------------------------------------------------------
 

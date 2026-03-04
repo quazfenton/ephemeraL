@@ -17,6 +17,10 @@ This platform provides:
 - **Worker Marketplace**: Publish and discover reusable workers
 - **Resource Quotas**: Per-sandbox execution, memory, storage, and network limits
 - **Disaster Recovery**: Snapshot backup and restoration with retry logic
+- **Rate Limiting**: Per-client API rate limiting with burst protection
+- **Tool Integrations**: 150+ pre-built tool integrations via Composio (GitHub, Slack, Notion, etc.)
+- **Event Bus**: Cross-service event-driven architecture for auditing and extensibility
+- **Input Validation**: Comprehensive security validation for all user inputs
 
 ## Architecture
 
@@ -25,6 +29,7 @@ Identity (JWT)
  ↓
 ┌─────────────────────────────────────┐
 │           API Gateway               │
+│     + Rate Limiting Middleware      │
 ├──────────┬──────────┬───────────────┤
 │ Sandbox  │ Snapshot │ Agent         │
 │ API      │ API      │ Workspace API │
@@ -34,6 +39,9 @@ Identity (JWT)
 ├─────────────────────────────────────┤
 │  Storage │ Metrics │ Quota Manager  │
 │  (S3)    │ (Prom)  │               │
+├─────────────────────────────────────┤
+│  Event Bus │ Tool Integrations      │
+│  (Pub/Sub) │ (Composio SDK)         │
 └─────────────────────────────────────┘
 ```
 
@@ -107,10 +115,50 @@ Identity (JWT)
 - Automatic fallback container promotion on upstream failure
 - Health checking and target registry
 
-### 11. Documentation
+### 11. Rate Limiting (`serverless_workers_sdk/rate_limiter.py`)
+
+- Per-client rate limiting based on IP and User-Agent
+- Configurable sustained and burst limits
+- Automatic window cleanup to prevent memory leaks
+- Whitelist support for trusted clients
+- Standard rate limit headers (X-RateLimit-*, Retry-After)
+
+### 12. Configuration (`serverless_workers_sdk/config.py`)
+
+- Centralized Pydantic-based configuration
+- Environment variable overrides
+- Type-safe settings with validation
+- Support for all service configuration options
+
+### 13. Event Bus (`serverless_workers_sdk/event_bus.py`)
+
+- Pub/sub event-driven architecture
+- Synchronous and asynchronous event handlers
+- Event history for debugging and replay
+- Pre-defined event types for all major operations
+- Error handling with graceful degradation
+
+### 14. Tool Integration (`serverless_workers_sdk/tool_integration.py`)
+
+- Composio SDK integration for 150+ tools
+- Per-sandbox tool configuration
+- OAuth token management
+- Pre-built tool sets for common roles (developer, analyst, etc.)
+- FastAPI routes for tool management
+
+### 15. Input Validation (`serverless_workers_sdk/validation.py`)
+
+- File path validation with directory traversal prevention
+- Command and argument validation
+- Shell injection prevention
+- URL validation with private IP blocking
+- Request payload validation
+
+### 16. Documentation
 
 - `data_models.md`: Data structures and architecture
 - `identity_config.md`: Identity provider setup guide
+- `COMPREHENSIVE_REVIEW_AND_PLAN_2026-03-03.md`: Technical review and improvement plan
 
 ## Local Development
 

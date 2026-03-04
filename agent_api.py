@@ -203,6 +203,26 @@ class WorkspaceManager:
                 ]
             return results
 
+    async def get_workspace_shares(self, workspace_id: str) -> dict:
+        """Get all shares for a workspace."""
+        async with self._lock:
+            if workspace_id not in self._workspaces:
+                raise KeyError(workspace_id)
+            return self._shares.get(workspace_id, {}).copy()
+
+    async def revoke_workspace_access(self, workspace_id: str, agent_id: str) -> bool:
+        """Revoke an agent's access to a workspace."""
+        async with self._lock:
+            if workspace_id not in self._shares:
+                return False
+            if agent_id in self._shares[workspace_id]:
+                del self._shares[workspace_id][agent_id]
+                # Update workspace shared_with list
+                if workspace_id in self._workspaces:
+                    self._workspaces[workspace_id].shared_with = list(self._shares[workspace_id].keys())
+                return True
+            return False
+
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -269,26 +289,70 @@ async def delete_workspace(workspace_id: str, current_user: str = Depends(get_cu
 
 
 @app.post("/workspaces/{workspace_id}/exec", tags=["workspaces"])
-async def exec_in_workspace(workspace_id: str, payload: ExecRequest, current_user: str = Depends(get_current_user)):
+async def exec_in_workspace(
+    workspace_id: str, 
+    payload: ExecRequest, 
+    current_user: str = Depends(get_current_user)
+):
     """Execute a command inside the workspace's sandbox."""
+    import httpx
+    
     access = await manager.check_access(workspace_id, current_user)
     if access is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
     if access == "read":
         raise HTTPException(status_code=403, detail="Read-only access cannot execute commands")
+    
     try:
         workspace = await manager.get_workspace(workspace_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Workspace not found")
+    
     if not workspace.sandbox_id:
         raise HTTPException(status_code=400, detail="Workspace has no sandbox attached")
-    return {
-        "workspace_id": workspace_id,
-        "sandbox_id": workspace.sandbox_id,
-        "command": payload.command,
-        "args": payload.args,
-        "status": "delegated",
-    }
+    
+    # Actually execute the command via sandbox_api
+    sandbox_api_url = os.getenv("SANDBOX_API_URL", "http://127.0.0.1:8000")
+    
+    async with httpx.AsyncClient(timeout=payload.timeout or 30.0) as client:
+        try:
+            response = await client.post(
+                f"{sandbox_api_url}/sandboxes/{workspace.sandbox_id}/exec",
+                json={
+                    "command": payload.command,
+                    "args": payload.args or [],
+                    "timeout": payload.timeout,
+                },
+                timeout=payload.timeout or 30.0,
+            )
+            
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Sandbox not found")
+            elif response.status_code == 401:
+                raise HTTPException(status_code=401, detail="Authentication failed")
+            elif response.status_code != 200:
+                raise HTTPException(
+                    status_code=502, 
+                    detail=f"Command execution failed: {response.text}"
+                )
+            
+            result = response.json()
+            return {
+                "workspace_id": workspace_id,
+                "sandbox_id": workspace.sandbox_id,
+                "result": result,
+            }
+            
+        except httpx.ConnectError as e:
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Sandbox API unavailable: {str(e)}"
+            )
+        except httpx.TimeoutException as e:
+            raise HTTPException(
+                status_code=504,
+                detail=f"Command execution timed out: {str(e)}"
+            )
 
 
 # ---------------------------------------------------------------------------
