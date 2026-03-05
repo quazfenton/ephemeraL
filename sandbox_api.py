@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from pathlib import Path
@@ -28,8 +29,12 @@ from serverless_workers_sdk.validation import (
     validate_identifier,
     validate_exec_payload,
 )
+from serverless_workers_sdk.config import settings
 
 from auth import get_user_id, validate_user_id
+
+logger = logging.getLogger(__name__)
+
 
 def get_current_user(authorization: str = Header(...)):
     """
@@ -111,7 +116,7 @@ async def create_sandbox(payload: SandboxCreateRequest, current_user: str = Depe
     Returns:
         dict: A mapping with keys `sandbox_id` (the created sandbox's identifier) and `workspace` (the workspace path as a string).
     """
-    sandbox = await manager.create_sandbox(payload.sandbox_id)
+    sandbox = await manager.create_sandbox(payload.sandbox_id, owner_id=current_user)
     sandbox_created_total.inc()
     sandbox_active.inc()
     return {"sandbox_id": sandbox.sandbox_id, "workspace": str(sandbox.workspace)}
@@ -134,24 +139,21 @@ async def delete_sandbox(
     Returns:
         dict: A confirmation message on successful deletion.
     """
-    # In a real application, current_user would typically be checked to ensure they have
-    # permission to delete this specific sandbox_id. For this task, we ensure authentication.
-    # For example:
-    # if not await manager.is_sandbox_owner(sandbox_id, current_user):
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox.")
-
     try:
-        # manager.remove_sandbox needs to be implemented to delete resources and return success status
-        success = await manager.remove_sandbox(sandbox_id)
-        if success:
-            sandbox_active.dec()
-            return {"message": f"Sandbox {sandbox_id} deleted successfully."}
-        else:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Sandbox {sandbox_id} not found or could not be deleted.")
-    except Exception as e:
-        # Catch more specific exceptions from manager.remove_sandbox if they exist,
-        # e.g., SandboxNotFoundException, SandboxDeletionFailedException.
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error deleting sandbox {sandbox_id}: {str(e)}")
+        sandbox = await manager.get_sandbox(sandbox_id)
+    except KeyError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandbox not found")
+
+    if sandbox.owner_id is not None and sandbox.owner_id != current_user:
+        logger.warning("Unauthorized sandbox deletion attempt", extra={"sandbox_id": sandbox_id, "actor": current_user})
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this sandbox")
+
+    success = await manager.remove_sandbox(sandbox_id)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sandbox not found")
+
+    sandbox_active.dec()
+    return {"message": f"Sandbox {sandbox_id} deleted successfully."}
 
 
 @app.post("/sandboxes/{sandbox_id}/exec", tags=["sandboxes"])
@@ -180,7 +182,10 @@ async def exec_command(sandbox_id: str, payload: ExecRequest, current_user: str 
     is_valid, error = validate_exec_payload(payload_dict)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error)
-    
+
+    if payload.timeout is not None and (payload.timeout < 1 or payload.timeout > 300):
+        raise HTTPException(status_code=400, detail="Timeout must be between 1 and 300 seconds")
+
     _t0 = time.monotonic()
     try:
         result = await manager.exec_command(
@@ -284,6 +289,14 @@ async def read_file(sandbox_id: str, file_path: str = FastAPIPath(...), current_
     
     try:
         sandbox = await manager.get_sandbox(sandbox_id)
+        target_path = sandbox.fs._resolve(file_path)
+        max_file_read_size = getattr(settings, "max_file_read_size", 10 * 1024 * 1024)
+        if target_path.exists() and target_path.stat().st_size > max_file_read_size:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large ({target_path.stat().st_size} bytes). Maximum size is {max_file_read_size} bytes."
+            )
+
         content = sandbox.fs.read(file_path)
         return {"content": content.decode(errors="ignore")}
     except KeyError:

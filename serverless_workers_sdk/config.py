@@ -51,6 +51,11 @@ class Settings(BaseSettings):
         env="DEFAULT_TIMEOUT",
         description="Default command execution timeout in seconds",
     )
+    max_file_read_size: int = Field(
+        default=10 * 1024 * 1024,
+        env="MAX_FILE_READ_SIZE",
+        description="Maximum file size in bytes allowed for read_file API",
+    )
     allowed_commands: List[str] = Field(
         default=["python", "node"],
         env="ALLOWED_COMMANDS",

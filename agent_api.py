@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from auth import get_user_id, validate_user_id
 
@@ -40,8 +40,8 @@ class AgentWorkspace(BaseModel):
     description: Optional[str] = None
     created_at: str
     status: str = "active"
-    shared_with: list[str] = []
-    tags: list[str] = []
+    shared_with: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
 
 
 class CreateWorkspaceRequest(BaseModel):
@@ -62,9 +62,9 @@ class WorkerListing(BaseModel):
     description: str
     author: str
     version: str = "1.0.0"
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     endpoint_url: str
-    pricing: dict = {}
+    pricing: dict = Field(default_factory=dict)
     rating: float = 0.0
     installs: int = 0
 
@@ -72,7 +72,7 @@ class WorkerListing(BaseModel):
 class PublishWorkerRequest(BaseModel):
     name: str
     description: str
-    tags: list[str] = []
+    tags: list[str] = Field(default_factory=list)
     endpoint_url: str
     pricing: Optional[dict] = None
 

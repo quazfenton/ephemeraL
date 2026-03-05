@@ -32,6 +32,7 @@ class SandboxInstance:
     created_at: float
     last_active: float
     keep_alive_at: float
+    owner_id: Optional[str] = None
     preview_ports: Dict[int, str] = field(default_factory=dict)
     background_jobs: Dict[str, BackgroundJob] = field(default_factory=dict)
 
@@ -84,7 +85,7 @@ class SandboxManager:
         self._recorder = EventRecorder()
         self._quota = QuotaManager()
 
-    async def create_sandbox(self, sandbox_id: Optional[str] = None) -> SandboxInstance:
+    async def create_sandbox(self, sandbox_id: Optional[str] = None, owner_id: Optional[str] = None) -> SandboxInstance:
         """
         Create a new sandbox instance with a dedicated workspace and virtual filesystem.
         
@@ -106,6 +107,7 @@ class SandboxManager:
                 created_at=asyncio.get_event_loop().time(),
                 last_active=asyncio.get_event_loop().time(),
                 keep_alive_at=asyncio.get_event_loop().time(),
+                owner_id=owner_id,
             )
             self._sandboxes[sandbox_id] = sandbox
             await self._recorder.record("sandbox.created", sandbox_id)
