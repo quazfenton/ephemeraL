@@ -105,7 +105,7 @@ def validate_user_id(user_id: str) -> bool:
     Security Rules:
     - Only ASCII alphanumeric characters allowed
     - Hyphens and underscores permitted for readability
-    - No path separators (/, \) to prevent directory traversal
+    - No path separators (/, \\) to prevent directory traversal
     - No shell metacharacters to prevent command injection
     - Maximum length enforced (256 characters)
 
