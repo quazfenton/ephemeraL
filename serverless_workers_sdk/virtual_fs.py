@@ -32,55 +32,63 @@ class VirtualFS:
         Raises:
             ValueError: If the provided path contains '..', indicating attempted directory traversal.
         """
+        # SECURITY FIX: Reject null bytes immediately
+        if '\x00' in path:
+            raise ValueError("Null bytes not allowed in path")
+        
+        # Remove leading slash
         if path.startswith("/"):
             path = path[1:]
-
+        
+        # SECURITY FIX: Reject paths with .. anywhere (before normalization)
+        path_parts = path.split("/")
+        if '..' in path_parts:
+            raise ValueError("Directory traversal not allowed (..)")
+        
         # Check if the first component is a registered mount alias
         parts = path.split("/")
         if parts and parts[0] in self.mounts:
             # If it's a mount alias, resolve to the mounted target
             target_path = str(self.mounts[parts[0]])
             remaining_parts = parts[1:] if len(parts) > 1 else []
+            
+            # SECURITY FIX: Validate remaining parts for directory traversal
+            if '..' in remaining_parts:
+                raise ValueError("Directory traversal not allowed in mount path")
+            
             if remaining_parts:
-                # Validate remaining parts for directory traversal
-                normalized = []
-                for part in remaining_parts:
-                    if part == "..":
-                        if not normalized:
-                            raise ValueError("directory traversal prevented")
-                        normalized.pop()
-                    elif part != "." and part != "":
-                        normalized.append(part)
-                result = Path(target_path).joinpath(*normalized) if normalized else Path(target_path)
-                try:
-                    result.resolve().relative_to(Path(target_path).resolve())
-                except ValueError:
-                    raise ValueError("directory traversal prevented")
-                return result
+                # Build result path
+                result = Path(target_path).joinpath(*remaining_parts)
             else:
                 return Path(target_path)
+            
+            # SECURITY FIX: Verify resolved path is under target
+            try:
+                result.resolve().relative_to(Path(target_path).resolve())
+            except ValueError:
+                raise ValueError("Path resolves outside mount target")
+            return result
 
         # Split path into components and check for directory traversal
         parts = path.split("/")
         normalized_parts = []
         for part in parts:
+            # SECURITY FIX: Skip empty parts and current dir, but reject parent dir
             if part == "..":
-                if not normalized_parts:
-                    # Attempting to traverse above the root
-                    raise ValueError("directory traversal prevented")
-                normalized_parts.pop()  # Go up one level
-            elif part != "." and part != "":  # Skip current directory references and empty parts
-                normalized_parts.append(part)
+                raise ValueError("Directory traversal not allowed (..)")
+            elif part == "." or part == "":
+                continue  # Skip current directory references and empty parts
+            normalized_parts.append(part)
 
         # Join the normalized parts with the root
         result_path = self.root.joinpath(*normalized_parts)
-        
-        # Verify that the resolved path is still under the root to prevent traversal
+
+        # SECURITY FIX: Verify that the resolved path is still under the root
         try:
             result_path.resolve().relative_to(self.root.resolve())
         except ValueError:
-            raise ValueError("directory traversal prevented")
-        
+            raise ValueError("Path resolves outside filesystem root")
+
         return result_path
 
     def write(self, path: str, data: bytes) -> None:

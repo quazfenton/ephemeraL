@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 import time
 from datetime import datetime, timezone
@@ -644,10 +645,3 @@ async def circuit_breaker_middleware(request, call_next):
         
         logger.error(f"Request failed for {endpoint}: {e}")
         raise
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
-
-@app.get("/health", tags=["health"])
-async def health_check():
-    return {"status": "healthy", "service": "agent-workspace-api"}
