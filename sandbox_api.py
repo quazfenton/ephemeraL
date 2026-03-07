@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Optional
@@ -15,7 +14,6 @@ from pydantic import BaseModel
 from serverless_workers_sdk.background import BackgroundExecutor
 from serverless_workers_sdk.preview import PreviewRegistrar
 from serverless_workers_sdk.runtime import SandboxManager
-from serverless_workers_sdk.virtual_fs import VirtualFS
 from serverless_workers_sdk.metrics import (
     MetricsMiddleware,
     create_metrics_endpoint,
@@ -31,7 +29,7 @@ from serverless_workers_sdk.validation import (
 )
 from serverless_workers_sdk.config import settings
 
-from auth import get_user_id, validate_user_id
+from auth import get_user_id
 
 logger = logging.getLogger(__name__)
 

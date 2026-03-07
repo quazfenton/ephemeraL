@@ -1,10 +1,8 @@
 """Comprehensive tests for rate limiting middleware."""
 
 import pytest
-from unittest import mock
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from starlette.testclient import TestClient as StarletteTestClient
 
 from serverless_workers_sdk.rate_limiter import RateLimiter, EndpointRateLimiter
 
@@ -297,7 +295,6 @@ class TestRateLimiterEdgeCases:
 
     def test_rate_limiter_concurrent_requests(self, app):
         """Test handling of concurrent requests."""
-        import asyncio
         from concurrent.futures import ThreadPoolExecutor
         
         client = TestClient(app)

@@ -7,7 +7,6 @@ import re
 from fastapi import FastAPI, HTTPException, Depends, Header
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
 from auth import get_user_id, validate_user_id
 from snapshot_manager import SnapshotManager
 from serverless_workers_sdk.metrics import (

@@ -393,7 +393,6 @@ class TestSandboxAPI:
 
     def test_mount_path_success(self, client, mock_manager):
         """Test successful path mounting."""
-        from pathlib import Path
 
         async def mock_mount(sandbox_id, alias, target):
             pass
@@ -415,7 +414,6 @@ class TestSandboxAPI:
 
     def test_mount_path_sandbox_not_found(self, client, mock_manager):
         """Test mount on non-existent sandbox."""
-        from pathlib import Path
 
         async def mock_mount(sandbox_id, alias, target):
             raise KeyError("Sandbox not found")
@@ -437,7 +435,6 @@ class TestSandboxAPI:
 
     def test_mount_path_target_not_found(self, client, mock_manager):
         """Test mount with non-existent target."""
-        from pathlib import Path
 
         async def mock_mount(sandbox_id, alias, target):
             raise FileNotFoundError("Mount target missing")

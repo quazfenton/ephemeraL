@@ -9,14 +9,7 @@ import os
 import sys
 import subprocess
 import shutil
-import signal
-import time
 from pathlib import Path
-from typing import Optional
-import tempfile
-import threading
-import json
-import pwd
 
 
 class ContainerFallback:
@@ -492,7 +485,7 @@ def main():
     
     # Validate user_id format
     if not container_manager._validate_user_id(user_id):
-        print(f"Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed.")
+        print("Error: Invalid user_id format. Only alphanumeric characters, underscores, and hyphens allowed.")
         sys.exit(1)
     
     if action == "create":

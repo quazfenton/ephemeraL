@@ -1,0 +1,14 @@
+﻿name: 2. Security & Dependency Audit
+on:
+  schedule:
+    - cron: '0 2 * * 1' # Every Monday at 2 AM
+  pull_request:
+jobs:
+  python-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install pip-audit
+      - run: pip-audit || echo "Vulnerabilities found but continuing"

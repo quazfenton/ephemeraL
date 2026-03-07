@@ -1,7 +1,5 @@
 """Comprehensive tests for container_fallback.py module."""
 
-import os
-import sys
 import tempfile
 import shutil
 from pathlib import Path

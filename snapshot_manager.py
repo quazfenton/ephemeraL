@@ -7,14 +7,13 @@ with retry logic and optional remote storage backend support.
 from __future__ import annotations
 
 import asyncio
-import io
 import logging
 import os
 import re
 import shutil
 import tarfile
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable

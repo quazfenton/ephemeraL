@@ -14,11 +14,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import uuid
 import time
 from datetime import datetime, timezone
 from typing import Optional
-from collections import defaultdict
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -268,7 +266,7 @@ async def track_metrics(request, call_next):
     except HTTPException as e:
         status = str(e.status_code)
         raise
-    except Exception as e:
+    except Exception:
         status = "500"
         # Record failure in circuit breaker
         cb = await get_circuit_breaker(endpoint)

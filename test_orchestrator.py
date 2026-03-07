@@ -1,7 +1,6 @@
 """Comprehensive tests for serverless_workers_router/orchestrator.py module."""
 
 import asyncio
-import os
 import subprocess
 import tempfile
 import shutil

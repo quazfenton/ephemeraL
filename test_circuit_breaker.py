@@ -2,8 +2,6 @@
 
 import pytest
 import asyncio
-import time
-from unittest import mock
 
 from serverless_workers_sdk.circuit_breaker import (
     CircuitBreaker,

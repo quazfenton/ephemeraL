@@ -3,7 +3,6 @@
 import os
 import pytest
 from unittest import mock
-from jose import jwt
 from datetime import datetime, timedelta
 
 from auth import get_user_id, validate_user_id, map_user_to_workspace, PUBLIC_KEY
@@ -92,7 +91,6 @@ class TestGetUserId:
         mock_decode.side_effect = ExpiredSignatureError("Token expired")
         
         # Import here to avoid issues with mock
-        from auth import get_user_id
         
         with pytest.raises(ValueError, match="Token has expired"):
             get_user_id("fake_token")
@@ -103,7 +101,6 @@ class TestGetUserId:
         from jose import JWTError
         mock_decode.side_effect = JWTError("Invalid token")
         
-        from auth import get_user_id
         
         with pytest.raises(ValueError, match="Invalid token"):
             get_user_id("fake_token")
@@ -117,7 +114,6 @@ class TestGetUserId:
         }
         mock_decode.return_value = payload_without_sub
         
-        from auth import get_user_id
         
         with pytest.raises(ValueError, match="missing 'sub' claim"):
             get_user_id("fake_token")
@@ -131,7 +127,6 @@ class TestGetUserId:
         }
         mock_decode.return_value = malicious_payload
         
-        from auth import get_user_id
         
         with pytest.raises(ValueError, match="Invalid user ID format"):
             get_user_id("fake_token")

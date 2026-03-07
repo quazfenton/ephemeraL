@@ -1,0 +1,117 @@
+﻿name: ðŸ§  Autobot
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  multi-iteration-fix:
+    if: github.event.label.name == 'autofix'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Full Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0 # CRITICAL: Required for AST Repo Mapping
+
+      - name: Setup Python & Agent Tooling
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install Aider (Agent Engine)
+        run: python -m pip install aider-chat
+
+      - name: Extract CodeRabbit Context
+        id: context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Grabs the last 100 lines of CodeRabbit feedback to give the agent its mission
+	  BOT_PATTERN="coderabbitai|qodo-code-review|cubic-dev-ai|codeant-ai"
+          
+          RAW_FEEDBACK=$(gh pr view ${{ inputs.pr_number }} --comments)
+          SUGGESTIONS=$(echo "$RAW_FEEDBACK" | grep -Ei -A 100 "$BOT_PATTERN" || echo "Review the suggestion if there is any for optimizations.")
+          
+          # Sanitize string for bash multiline
+          echo "suggestions<<EOF" >> $GITHUB_OUTPUT
+          echo "$SUGGESTIONS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Manage Shadow Branch
+        run: |
+          FIX_BRANCH="ai-fixes-${{ github.head_ref }}"
+          git config user.name "jarvis"
+          git config user.email "fullmetal@solo-dev.internal"
+          
+          # If the branch exists remotely, fetch it and hard reset to the current PR state
+          if git ls-remote --heads origin $FIX_BRANCH | grep -q $FIX_BRANCH; then
+            echo "Shadow branch exists. Syncing..."
+            git fetch origin $FIX_BRANCH
+            git checkout $FIX_BRANCH
+            git reset --hard origin/${{ github.head_ref }}
+          else
+            echo "Creating new shadow branch..."
+            git checkout -b $FIX_BRANCH
+          fi
+
+      - name: Multi-Iteration Agent Execution & Fallback Routing
+        env:
+          # API Keys from your GitHub Repo/Org Secrets
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PROMPT: |
+            "You are an expert Staff Engineer. Analyze the whole repo context. 
+            Here is the CodeRabbit review context: ${{ steps.context.outputs.suggestions }}
+            Apply these fixes, ensure Postgres/Terraform logic is intact, and verify type safety."
+        run: |
+          # Function to run the agent in CI mode (no user prompt, auto-apply, repo map enabled)
+          run_agent() {
+            local MODEL=$1
+            local API_BASE_ARG=$2
+            echo "Attempting execution with model: $MODEL"
+            
+            # Aider runs multiple iterations under the hood if it needs to fix lint errors it caused
+            aider --model "$MODEL" $API_BASE_ARG --message "$PROMPT" --yes --no-auto-commits --dark-mode
+          }
+
+          # 1. Primary: Gemini 3.1 Pro
+          if ! run_agent "gemini/gemini-3.1-pro" ""; then
+            echo "Gemini 3.1 Pro failed or hit rate limit. Fallback 1: Gemini Flash"
+            
+            # 2. Fallback: Gemini 3.0 Flash
+            if ! run_agent "gemini/gemini-3.0-flash" ""; then
+              echo "Gemini Flash failed. Fallback 2: Mistral Large"
+              
+              # 3. Fallback: Mistral
+              if ! run_agent "mistral/mistral-large-latest" ""; then
+                echo "Mistral failed. Fallback 3: Minimax (OpenCode Zen)"
+                
+                # 4. Fallback: Minimax 2.5 Max (Using OpenAI compatible routing)
+                export OPENAI_API_KEY=$OPENCODE_API_KEY
+                run_agent "opencode/minimax-m2.5-free" "--openai-api-base https://opencode.ai/zen/v1/chat/completions"
+              fi
+            fi
+          fi
+
+      - name: Commit and Force-Push Fixes
+        run: |
+          git add .
+          
+          # Only commit and push if the Agent actually changed files
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "ðŸ¤– Agent: Multi-iteration applied fixes & optimizations"
+            git push origin HEAD --force
+            
+            # Post a comment back to the PR
+            gh pr comment ${{ github.event.pull_request.number }} \
+              --body "ðŸš€ **Agent Workflow Complete!** I analyzed the repo and pushed fixes to \`ai-fixes-${{ github.head_ref }}\`."
+          else
+            echo "No changes were made by the agent."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

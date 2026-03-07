@@ -2,7 +2,7 @@
 
 import pytest
 from unittest import mock
-from httpx import AsyncClient, Response, Request, RequestError
+from httpx import RequestError
 from fastapi.testclient import TestClient
 from fastapi import status
 

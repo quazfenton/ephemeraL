@@ -20,7 +20,7 @@ from collections import defaultdict
 from fastapi import FastAPI, HTTPException, Depends, Header, Query
 from pydantic import BaseModel, Field
 
-from auth import get_user_id, validate_user_id
+from auth import get_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -600,7 +600,6 @@ async def get_metrics():
 @app.middleware("http")
 async def circuit_breaker_middleware(request, call_next):
     """Middleware to enforce circuit breakers and collect metrics"""
-    import time
     
     # Get endpoint name for circuit breaker
     endpoint = f"{request.method}:{request.url.path}"
